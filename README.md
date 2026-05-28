@@ -9,6 +9,24 @@
 
 本脚本会在当前 AI 网页右下角常驻一个便捷的悬浮窗，为你提供跨站同步存储、红字变量高亮、一键复制、左上角拉伸窗口等功能，大幅提升你的 Prompt 编写与调用效率。
 
+## 📸 界面预览 / Screenshots
+
+### 🪩 1. 悬浮球
+> 常驻页面右下角，点击即可展开功能主面板
+<br>
+
+<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/ball.png" width="85"/>
+
+<br>
+
+### 🪟 2. 主窗口 (Main Window)
+暗色模式 / 亮色模式
+<br>
+
+<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png" width="270"/>&nbsp;<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-light.png" width="270"/>
+
+<br>
+
 ## ✨核心功能亮点
 - **全网跨端同步**：支持在 豆包、ChatGPT、DeepSeek、Kimi、QWen、Gemini 等各大主流 AI 平台呼出。由于数据存储在油猴底层，你在 ChatGPT 存的提示词，转头打开 DeepSeek 就能立刻无缝调用，彻底打通平台壁垒。
 - **所见即所得的“红字变量”引擎**：抛弃繁琐的 {{变量}} 符号！用鼠标选中文本并点击 【标红选中文本】，即可生成醒目的红色变量区。支持随时框选 【标黑】 恢复普通状态，模板结构一目了然。
