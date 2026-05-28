@@ -20,7 +20,6 @@
 
 ### 🪟 2. 主窗口 (Main Window)
 > 暗色模式 / 亮色模式
-<br>
 
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png" width="270"/>&emsp;&emsp;&emsp;&emsp;&emsp;<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-light.png" width="270"/>
 
