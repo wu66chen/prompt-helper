@@ -11,14 +11,14 @@
 
 ## 📸 界面预览 / Screenshots
 
-### 🪩 1. 悬浮球
+### 悬浮球
 > 常驻页面右下角，点击即可展开功能主面板
 
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/ball.png" width="85"/>
 
 <br>
 
-### 🪟 2. 主窗口
+### 主窗口
 
 > 暗色模式 / 亮色模式
 
