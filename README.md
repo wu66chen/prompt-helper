@@ -14,7 +14,7 @@
 ### 悬浮球
 > 常驻页面右下角，点击即可展开功能主面板
 
-<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/ball.png" width="85"/>
+<img src="https://raw.githubusercontent.com/wu66chen/prompt-helper/blob/main/assets/ball.png" width="85"/>
 
 <br>
 
@@ -22,7 +22,7 @@
 
 > 暗色模式 / 亮色模式
 
-<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png" width="270"/>&nbsp;&emsp;&emsp;&emsp;<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-light.png" width="270"/>
+<img src="https://raw.githubusercontent.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png" width="270"/>&nbsp;&emsp;&emsp;&emsp;<img src="https://raw.githubusercontent.com/wu66chen/prompt-helper/blob/main/assets/window-light.png" width="270"/>
 
 <br>
 
