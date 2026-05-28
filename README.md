@@ -16,7 +16,7 @@
 
 <br>
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/ball.png?raw=true" width="85"/>
-<br>
+
 
 ### 主窗口
 
