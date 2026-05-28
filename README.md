@@ -14,16 +14,16 @@
 ### 悬浮球
 > 常驻页面右下角，点击即可展开功能主面板
 
+<br>
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/ball.png?raw=true" width="85"/>
-
 <br>
 
 ### 主窗口
 
 > 暗色模式 / 亮色模式
 
+<br>
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png?raw=true" width="270"/>&nbsp;&emsp;&emsp;&emsp;<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-light.png?raw=true" width="270"/>
-
 <br>
 
 ## ✨核心功能亮点
