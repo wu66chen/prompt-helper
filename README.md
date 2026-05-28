@@ -15,16 +15,12 @@
 > 常驻页面右下角，点击即可展开功能主面板
 
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/ball.png" width="85"/>
-
 <br>
-
 ### 🪟 2. 主窗口 (Main Window)
 > 暗色模式 / 亮色模式
 
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png" width="270"/>&emsp;&emsp;&emsp;&emsp;&emsp;<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-light.png" width="270"/>
-
 <br>
-
 ## ✨核心功能亮点
 - **全网跨端同步**：支持在 豆包、ChatGPT、DeepSeek、Kimi、QWen、Gemini 等各大主流 AI 平台呼出。由于数据存储在油猴底层，你在 ChatGPT 存的提示词，转头打开 DeepSeek 就能立刻无缝调用，彻底打通平台壁垒。
 - **所见即所得的“红字变量”引擎**：抛弃繁琐的 {{变量}} 符号！用鼠标选中文本并点击 【标红选中文本】，即可生成醒目的红色变量区。支持随时框选 【标黑】 恢复普通状态，模板结构一目了然。
