@@ -23,6 +23,7 @@
 > 暗色模式 / 亮色模式
 
 <br>
+
 <img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-dark.png?raw=true" width="270"/>&nbsp;&emsp;&emsp;&emsp;<img src="https://github.com/wu66chen/prompt-helper/blob/main/assets/window-light.png?raw=true" width="270"/>
 
 
