@@ -15,6 +15,10 @@ const {chromium}=require('playwright'),{setup}=require('./browser.cjs'),assert=r
   const reset=()=>page.evaluate(()=>window.__nativeWrite('OLD CLIPBOARD'));
   const copied=async(expected)=>{await page.waitForFunction(()=>document.querySelector('#db-prompt-helper-root').shadowRoot.querySelector('.toast').textContent==='已复制到剪贴板');assert.equal((await page.evaluate(()=>navigator.clipboard.readText())).replace(/\r\n/g,'\n'),expected);};
   await reset();await card.locator('[data-action=copy-text]').click();await copied(expected);
+  await reset();await card.locator('[data-action=preview]').click();await root.locator('[data-action=dialog-confirm]').click();await copied(expected);
+  await root.locator('[data-action=settings]').click();await root.locator('[name=libraryLayout]').selectOption('titles');await root.locator('[data-action=back]').click();
+  await reset();await card.locator('[data-action=copy]').click();await copied(expected);
+  await reset();await card.locator('[data-action=preview]').click();await root.locator('[data-action=dialog-confirm]').click();await copied(expected);
   await card.locator('[data-action=favorite]').click();await root.locator('[data-action=filter][data-kind=favorite]').click();await reset();await root.locator('.prompt [data-action=copy]').first().click();await copied(expected);
   await root.locator('.prompt [data-action=use]').first().click();await root.locator('[name=variable-0]').fill('测试原文');await root.locator('[name=variable-1]').fill('测试读者');
   const filled=await root.locator('[name=output]').inputValue();await reset();await root.locator('[data-action=copy-output]').click();await copied(filled);

@@ -78,5 +78,10 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  await root(a).locator('[data-action=settings]').click();await root(a).locator('[name=libraryLayout]').selectOption('masonry');
  await root(c).locator('[data-action=settings]').click();assert.equal(await root(c).locator('[name=libraryLayout]').inputValue(),'masonry');
  await root(c).locator('[data-action=back]').click();assert.equal(await root(c).locator('.prompt-list.masonry').count(),1);
+ for(const layout of ['grid','titles']){
+  await root(a).locator('[name=libraryLayout]').selectOption(layout);
+  await c.waitForFunction(mode=>document.querySelector('#db-prompt-helper-root').shadowRoot.querySelector('.prompt-list').classList.contains(mode==='titles'?'titles-only':'equal-grid'),layout);
+  await root(c).locator('[data-action=settings]').click();assert.equal(await root(c).locator('[name=libraryLayout]').inputValue(),layout);await root(c).locator('[data-action=back]').click();
+ }
  assert.deepEqual(errors,[]);console.log('PASS library layout preference across unrelated origins');await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});
