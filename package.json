@@ -14,6 +14,7 @@
     "test:tools": "node tests/tools.cjs",
     "test:tool-sync": "node tests/tool-sync.cjs",
     "test:editor": "node tests/editor-input.cjs",
+    "test:masonry": "node tests/masonry.cjs",
     "test:motion": "node tests/motion.cjs",
     "test:tooltip": "node tests/tooltip.cjs",
     "test:launcher": "node tests/launcher-size.cjs"

@@ -99,3 +99,17 @@
 .variable-textarea::selection{background:var(--blue);color:var(--primary-ink,#fff);-webkit-text-fill-color:var(--primary-ink,#fff)}
 .editor-variable{color:var(--danger)}
 @media(forced-colors:active){.variable-editor .variable-mirror{display:none}.variable-editor .variable-textarea{color:CanvasText;-webkit-text-fill-color:CanvasText}}
+/* Equal-width masonry; native DOM order and tab sequence stay unchanged. */
+.prompt-list.masonry{padding-top:4px;scrollbar-gutter:stable}
+.masonry .prompt-items{position:relative;width:100%}
+.masonry .prompt{position:absolute;box-sizing:border-box;padding:14px;margin:0;border:1px solid var(--line);border-radius:12px;background:var(--reading-glass,var(--canvas));min-width:0}
+.masonry .prompt h3{font-size:15px;font-weight:700;line-height:1.55;white-space:normal;overflow:visible;overflow-wrap:anywhere}
+.masonry .prompt-content{margin:9px 0 8px;-webkit-line-clamp:4;font-size:12px;line-height:1.75}
+.masonry .prompt-content.expanded{display:block;-webkit-line-clamp:unset}
+.masonry .prompt-bottom{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.masonry .tags{min-width:0}
+.masonry .actions{flex-wrap:wrap;max-width:100%;gap:4px}
+.masonry .actions .btn{padding:5px 8px;white-space:normal;min-width:0}
+.masonry .actions [data-action=copy]{margin-left:auto}
+.compact .masonry .prompt{padding:11px}
+.compact .masonry .prompt-content:not(.expanded){-webkit-line-clamp:2}

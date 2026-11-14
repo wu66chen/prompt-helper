@@ -39,6 +39,7 @@ npm run test:ui
 | `npm run test:tools` | 工具编辑、原样复制变量、恢复内置、增删撤销、跨页并行编辑保护、草稿和窄窗口 |
 | `npm run test:tool-sync` | 旧工具迁移、模拟双设备 WebDAV、JSON 导入导出、工具冲突与删除保护 |
 | `npm run test:editor` | 网页冒泡 / 捕获快捷键干扰、真实剪贴板粘贴、中文组合输入、撤销、红色变量和滚动对齐 |
+| `npm run test:masonry` | 排列切换、等宽与不重叠、标题完整、最短列补位、展开、搜索、主题和响应式布局 |
 | `npm run test:window` | 窗口与入口对齐、拖动、标签布局和视口约束 |
 | `npm run test:controls` | 缩放边角与收起方式 |
 | `npm run test:sidebar` | 侧栏操作和分组颜色 |

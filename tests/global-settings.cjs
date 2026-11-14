@@ -74,5 +74,9 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  await c.waitForFunction(()=>!!document.querySelector('#db-prompt-helper-root').shadowRoot.querySelector('[data-action=reset-tool][data-key=title]'));
  await root(c).locator('[data-action=copy-tool][data-key=title]').click();
  assert.equal(C.project(await c.evaluate(()=>GM_listValues().filter(k=>k.startsWith('ph3_op_')).flatMap(k=>GM_getValue(k)))).tool.find(t=>t.key==='title').text,'跨网站工具 {{原文}}');
- assert.deepEqual(errors,[]);console.log('PASS custom tool changes shared across unrelated origins');await browser.close();
+ console.log('PASS custom tool changes shared across unrelated origins');
+ await root(a).locator('[data-action=settings]').click();await root(a).locator('[name=libraryLayout]').selectOption('masonry');
+ await root(c).locator('[data-action=settings]').click();assert.equal(await root(c).locator('[name=libraryLayout]').inputValue(),'masonry');
+ await root(c).locator('[data-action=back]').click();assert.equal(await root(c).locator('.prompt-list.masonry').count(),1);
+ assert.deepEqual(errors,[]);console.log('PASS library layout preference across unrelated origins');await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});
