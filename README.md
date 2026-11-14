@@ -14,7 +14,7 @@
 
 [![MIT License](https://img.shields.io/github/license/wu66chen/prompt-helper)](LICENSE)
 
-**[安装 / 更新到 3.12.0](https://raw.githubusercontent.com/wu66chen/prompt-helper/main/prompt-helper.user.js)** · [开始使用](#安装与更新) · [坚果云配置](docs/sync.md) · [使用指南](docs/usage.md)
+**[安装 / 更新到 3.12.1](https://raw.githubusercontent.com/wu66chen/prompt-helper/main/prompt-helper.user.js)** · [开始使用](#安装与更新) · [坚果云配置](docs/sync.md) · [使用指南](docs/usage.md)
 
 **小海豹，常驻网页的一角。** 它也是实际使用中的悬浮入口：点击展开提示词窗口，拖动改变位置。大小可在设置中调整为 48–128px；浅深主题保留同一只海豹的树脂质感。[查看透明 Logo](assets/readme/seal.png)
 
@@ -110,6 +110,7 @@
 
 ## 更新记录
 
+- **3.12.1**：修复输入隔离误拦剪贴板写入事件导致的“提示成功但未复制”；统一检查各复制入口，增加失败回退、空内容检查与真实剪贴板回归。
 - **3.12.0**：新增瀑布流排列选项，等宽卡片完整显示标题、节选正文；支持响应式补位，并与搜索、筛选、紧凑显示和跨网站偏好共用兼容。
 - **3.11.0**：工具提示词加入坚果云与 JSON 备份，支持迁移和冲突保留；隔离网页输入快捷键，减少编辑时焦点被抢走；正文编辑框完整标红 `{{变量}}`。
 - **3.10.0**：「优化 Prompt」支持编辑内置工具、恢复默认、增删自定义工具、草稿与删除撤销；优化指令明确使用可填写参数，减少不必要的追问。
