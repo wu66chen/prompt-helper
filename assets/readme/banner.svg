@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="b-title b-desc">
+  <title id="b-title">提示词助手</title>
+  <desc id="b-desc">常用提示词，随手可用。</desc>
+  <defs>
+    <linearGradient id="b-bg" x2="1" y2="1"><stop stop-color="#f5f8fb"/><stop offset="1" stop-color="#e5edf4"/></linearGradient>
+    <linearGradient id="b-glass" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".92"/><stop offset="1" stop-color="#fff" stop-opacity=".48"/></linearGradient>
+  </defs>
+  <rect width="1280" height="320" rx="24" fill="url(#b-bg)"/>
+  <g font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+    <text x="72" y="161" font-size="72" font-weight="650" letter-spacing="2" fill="#22364b">提示词助手</text>
+    <text x="76" y="224" font-size="30" fill="#4b6075">常用提示词，随手可用。</text>
+  </g>
+  <g transform="translate(846 58)">
+    <rect x="-25" y="24" width="328" height="204" rx="18" fill="#c5d4e1" opacity=".35"/>
+    <rect width="344" height="204" rx="18" fill="url(#b-glass)" stroke="#b9cbdc"/>
+    <path d="M0 44H344M74 44V204" stroke="#cfdae5"/>
+    <circle cx="21" cy="23" r="4" fill="#8399ad"/><circle cx="37" cy="23" r="4" fill="#b9c7d4"/><circle cx="53" cy="23" r="4" fill="#b9c7d4"/>
+    <rect x="14" y="64" width="46" height="20" rx="6" fill="#d3e2f0"/>
+    <path d="M24 109H50M24 137H50M24 165H42" stroke="#b2c2d0" stroke-width="5" stroke-linecap="round"/>
+    <rect x="94" y="64" width="62" height="22" rx="6" fill="#346ea1"/>
+    <rect x="164" y="64" width="76" height="22" rx="6" fill="#e3eaf1"/>
+    <path d="M98 110H256M98 132H307M98 153H278M98 175H222" stroke="#b7c7d6" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>
