@@ -36,6 +36,7 @@ npm run test:ui
 | `npm run test:launcher` | 尺寸预览、保存、四角展开、刷新恢复与边界 |
 | `npm run test:settings` | 跨网站设置共享、布局适配、未完成表单保护 |
 | `npm run test:sites` | 网站启停、默认规则与自定义规则、跨站共享、菜单恢复、未启用网站不加载与 HTTP 兼容 |
+| `npm run test:tools` | 工具编辑、原样复制变量、恢复内置、增删撤销、跨页并行编辑保护、草稿和窄窗口 |
 | `npm run test:window` | 窗口与入口对齐、拖动、标签布局和视口约束 |
 | `npm run test:controls` | 缩放边角与收起方式 |
 | `npm run test:sidebar` | 侧栏操作和分组颜色 |

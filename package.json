@@ -11,6 +11,7 @@
     "test:sync": "node tests/sync-compat.cjs",
     "test:settings": "node tests/global-settings.cjs",
     "test:sites": "node tests/sites-browser.cjs",
+    "test:tools": "node tests/tools.cjs",
     "test:motion": "node tests/motion.cjs",
     "test:tooltip": "node tests/tooltip.cjs",
     "test:launcher": "node tests/launcher-size.cjs"

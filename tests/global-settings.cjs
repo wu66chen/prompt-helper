@@ -68,5 +68,11 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  assert.equal(await root(c).locator('[name=launcherSize]').inputValue(),'128');
  const sized=await create('delta.test');assert.equal((await ball(sized).boundingBox()).width,128);await sized.close();pages.delete(sized);
  console.log('PASS launcher size live sync across unrelated origins and new sites');
- assert.deepEqual(errors,[]);console.log('PASS remote settings preserve unfinished form input');await browser.close();
+ console.log('PASS remote settings preserve unfinished form input');
+ await root(a).locator('[data-action=prompt-tools]').click();await root(c).locator('[data-action=prompt-tools]').click();
+ await root(a).locator('[data-action=edit-tool][data-key=title]').click();await root(a).locator('[name=content]').fill('跨网站工具 {{原文}}');await root(a).locator('[data-action=save-prompt]').click();
+ await c.waitForFunction(()=>!!document.querySelector('#db-prompt-helper-root').shadowRoot.querySelector('[data-action=reset-tool][data-key=title]'));
+ await root(c).locator('[data-action=copy-tool][data-key=title]').click();
+ assert.equal(await c.evaluate(()=>GM_getValue('ph3_tool_title').text),'跨网站工具 {{原文}}');
+ assert.deepEqual(errors,[]);console.log('PASS custom tool changes shared across unrelated origins');await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});
