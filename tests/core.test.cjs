@@ -4,6 +4,18 @@ const C=require('../src/core.cjs');
 const value=content=>({title:'模板',content,tags:['写作'],favorite:false});
 const op=(id,parents=[],content=id,at=1)=>({id,parents,entity:'prompt',key:'p',device:'test',at,value:content===null?null:value(content)});
 
+test('tool histories roundtrip, retain concurrent edits/reset, and never revive deleted tools from old backups',()=>{
+ const tool=(id,parents=[],text=id)=>({id,parents,entity:'tool',key:'refine',at:1,device:'fixture',value:text===null?null:{title:'优化',description:'说明',text}});
+ const initial=tool('initial'),a=tool('a',['initial'],'设备 A'),b=tool('b',['initial'],'设备 B'),reset=tool('reset',['a'],null);
+ const merged=C.merge([initial,a],[initial,b]);assert.equal(C.project(merged).tool.length,2);assert.ok(C.project(merged).tool.every(t=>t.conflict));
+ assert.deepEqual(C.unpack(C.pack(merged)),merged);assert.equal(JSON.parse(C.pack(merged)).version,4);
+ const mixed=C.project(C.merge(merged,[reset]));assert.equal(mixed.tool.length,1);assert.equal(mixed.tool[0].deletedConflict,true);
+ const resolved=tool('resolved',['b','reset'],'最终版本');assert.equal(C.project(C.merge(merged,[reset,resolved])).tool.length,1);
+ assert.equal(C.project(C.merge([initial,a,reset],[initial])).tool.length,0);
+ const old=JSON.stringify({format:'prompt-helper',version:3,operations:[op('old')]});assert.equal(C.unpack(old)[0].entity,'prompt');
+ assert.throws(()=>C.validate([tool('bad',[],'')]),/工具/);
+});
+
 test('configurable launcher size preserves anchor roundtrips and viewport boundaries',()=>{
     for(const size of [48,72,128])for(const [w,h] of [[1440,1000],[390,640],[80,60]])for(const direction of ['up-left','up-right','down-left','down-right']){
         const opened=C.anchoredRect({x:w-20,y:h-30},{w:680,h:650},w,h,direction,size);

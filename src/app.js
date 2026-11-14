@@ -10,7 +10,7 @@ function stableId(text) {
 let device = GM_getValue(PREFIX+'device', '');
 if (!device) { device = id(); GM_setValue(PREFIX+'device', device); }
 const SETTINGS_KEY=PREFIX+'settings_global',LAYOUT_KEY=PREFIX+'layout_global';
-const TOOL_PREFIX=PREFIX+'tool_',TOOL_CHANGED=PREFIX+'tools_changed';
+const TOOL_PREFIX=PREFIX+'tool_';
 const defaults = {theme:'system',compact:false,opaque:false,sidebarCollapsed:false,syncPosition:true,motion:true,launcherSize:72};
 const previousTheme=GM_getValue('db_theme_mode_'+site,'system');
 const globalSettings=GM_getValue(SETTINGS_KEY,null);
@@ -18,7 +18,7 @@ const storedSettings=globalSettings||GM_getValue(PREFIX+'settings_'+site,{});
 let settings = {...defaults,theme:['light','dark'].includes(previousTheme)?previousTheme:'system',...storedSettings,launcherSize:Core.launcherSize(storedSettings.launcherSize),collapseModes:Core.collapseModes(storedSettings)};
 if(!globalSettings)GM_setValue(SETTINGS_KEY,settings);
 let ops = [], state, view = 'library', filter = {kind:'all',key:''}, query = '', form = null, settingsTab = 'appearance';
-let expanded = new Set(), toastTimer, draftTimer, searchTimer, autoTimer, syncBusy = false, syncQueued = false;
+let expanded = new Set(), toastTimer, draftTimer, searchTimer, autoTimer, syncBusy = false, syncQueued = false, highlightObserver;
 let errorStatus = '', session = id(), dialogReturnFocus = null, lastFocused = null, isOpen = false, activeDrag = false;
 const sharedLayout=settings.syncPosition?GM_getValue(LAYOUT_KEY,null):null;
 const storedLayout=sharedLayout||GM_getValue(PREFIX+'layout_'+site,null),legacyGeometry=GM_getValue(PREFIX+'geometry_'+site,null);
@@ -146,7 +146,7 @@ const $ = selector => shadow.querySelector(selector), $$ = selector => [...shado
 $('[data-action=nav]').classList.add('mobile-nav');
 const panel=$('.panel'), content=$('.content'), ball=$('.ball');
 document.documentElement.append(host);
-try { migrate(); refresh(); } catch(error) { errorStatus=error.message; ops=[]; state=project([]); }
+try { migrate(); migrateTools(); refresh(); } catch(error) { errorStatus=error.message; ops=[]; state=project([]); }
 let storageBroken = !!errorStatus;
 const themeMedia=matchMedia('(prefers-color-scheme:dark)');
 const motionMedia=matchMedia('(prefers-reduced-motion:reduce)'),motionJobs=new Map();
@@ -345,19 +345,34 @@ function renderDrafts() {
     content.innerHTML=viewHeader('草稿')+`<div class="scroll">${drafts.length?drafts.map(d=>`<article class="draft-row"><h3>${esc(d.form.title||d.form.content?.slice(0,45)||'未命名草稿')}</h3><p class="hint">${esc(d.site)} · ${new Date(d.at).toLocaleString('zh-CN')}</p><div class="actions">${btn('restore-draft','继续编辑','edit',`data-key="${esc(d.storageKey)}"`)}${btn('remove-draft','删除草稿','trash',`data-key="${esc(d.storageKey)}"`)}</div></article>`).join(''):'<div class="empty"><h3>没有未完成的草稿</h3><p>编辑中的内容会自动保存在这里。</p></div>'}</div>`;
 }
 function renderPromptTools() {
-    content.innerHTML=viewHeader('优化 Prompt')+`<div class="scroll tool-library"><div class="tool-library-toolbar"><p class="tool-intro">复制到你常用的 AI 平台，再发送需要处理的原文。</p>${btn('new-tool','添加工具','plus')}</div>${readTools().map(tool=>`<article class="tool-card" data-tool="${esc(tool.key)}"><h3>${esc(tool.title)}</h3>${tool.description?`<p>${esc(tool.description)}</p>`:''}<div class="tool-actions"><button type="button" class="btn primary" data-action="copy-tool" data-key="${esc(tool.key)}">${icon('copy')}复制提示词</button>${btn('edit-tool','编辑',null,`data-key="${esc(tool.key)}"`)}${tool.builtin?(tool.modified?btn('reset-tool','恢复内置',null,`data-key="${esc(tool.key)}"`):''):btn('delete-tool','删除',null,`data-key="${esc(tool.key)}"`)}</div></article>`).join('')}<p class="hint">内置工具可编辑并恢复默认，自定义工具可删除。修改在本浏览器各网站共用；工具内容不参与坚果云同步或提示词 JSON 备份。</p></div>`;
+    const cards=readTools().map(tool=>{
+        const attrs=`data-key="${esc(tool.key)}" data-tool-revision="${esc(tool.revision||'')}"`;
+        const conflict=tool.conflict?`<div class="conflict">${tool.deletedConflict?'此工具存在修改与删除／恢复内置的冲突':'此工具存在并行修改，已保留各版本'}${btn('resolve-tool','保留此版本',null,attrs)}${tool.deletedConflict?btn('resolve-tool-empty',tool.builtin?'使用内置版本':'确认删除',null,attrs):''}</div>`:'';
+        return `<article class="tool-card" data-tool="${esc(tool.key)}"><h3>${esc(tool.title)}</h3>${tool.description?`<p>${esc(tool.description)}</p>`:''}${conflict}<div class="tool-actions"><button type="button" class="btn primary" data-action="copy-tool" ${attrs}>${icon('copy')}复制提示词</button>${btn('edit-tool','编辑',null,attrs)}${tool.builtin?(tool.modified?btn('reset-tool','恢复内置',null,attrs):''):btn('delete-tool','删除',null,attrs)}</div></article>`;
+    }).join('');
+    content.innerHTML=viewHeader('优化 Prompt')+`<div class="scroll tool-library"><div class="tool-library-toolbar"><p class="tool-intro">复制到你常用的 AI 平台，再发送需要处理的原文。</p>${btn('new-tool','添加工具','plus')}</div>${cards}<p class="hint">工具的修改、自定义内容及删除记录包含在 JSON 备份中；配置坚果云后也会同步。所有设备请使用 3.11.0 或更新版本。</p></div>`;
 }
 function readTools(){
-    const builtins=promptTools.map(tool=>{const saved=GM_getValue(TOOL_PREFIX+tool.key,null);return {...tool,...(validTool(saved)?saved:{}),key:tool.key,builtin:true,modified:saved!==null};});
-    const custom=GM_listValues().filter(k=>k.startsWith(TOOL_PREFIX)&&!promptTools.some(t=>TOOL_PREFIX+t.key===k)).sort().map(k=>{const value=GM_getValue(k,null);return validTool(value)?{...value,key:k.slice(TOOL_PREFIX.length),builtin:false}:null;}).filter(Boolean);
+    refresh();
+    const builtins=promptTools.flatMap(tool=>{const versions=state.tool.filter(t=>t.key===tool.key);return versions.length?versions.map(t=>({...t,builtin:true,modified:true})):[{...tool,builtin:true,modified:false}];});
+    const custom=state.tool.filter(t=>!promptTools.some(b=>b.key===t.key)).map(t=>({...t,builtin:false}));
     return [...builtins,...custom];
 }
+function migrateTools(){
+    if(GM_getValue(PREFIX+'tools_migrated_v4',false))return;
+    const incoming=GM_listValues().filter(k=>k.startsWith(TOOL_PREFIX)).map(k=>{
+        const value=GM_getValue(k,null),key=k.slice(TOOL_PREFIX.length);
+        if(!validTool(value))throw Error('旧版工具提示词格式异常，原数据已保留，请先检查或备份');
+        return {id:'legacy-tool-'+stableId(key+JSON.stringify(value)),entity:'tool',key,value,parents:[],at:0,device:'legacy-tools'};
+    });
+    writeOperations(incoming,false);GM_setValue(PREFIX+'tools_migrated_v4',true);
+}
 function validTool(value){return !!value&&typeof value.title==='string'&&!!value.title.trim()&&value.title.length<=100&&typeof value.description==='string'&&value.description.length<=300&&typeof value.text==='string'&&!!value.text.trim()&&value.text.length<=200000;}
-function toolSnapshot(key){return JSON.stringify(GM_getValue(TOOL_PREFIX+key,null));}
-function toolChanged(){GM_setValue(TOOL_CHANGED,id());}
-function startToolEditor(key){
-    const tool=key?readTools().find(t=>t.key===key):null;if(key&&!tool){toast('工具已删除，请重新选择');return;}
-    const editKey=key||'custom-'+id();leaveForm();form={mode:'tool',draftId:id(),key:editKey,toolExisting:!!tool,toolBase:toolSnapshot(editKey),title:tool?.title||'',description:tool?.description||'',content:tool?.text||''};
+function toolSnapshot(key){refresh();return JSON.stringify((state.heads.get('tool:'+key)||[]).map(o=>o.id).sort());}
+function findTool(target){return readTools().find(t=>t.key===target.dataset.key&&(!target.dataset.toolRevision||t.revision===target.dataset.toolRevision));}
+function startToolEditor(key,revision){
+    const tool=key?readTools().find(t=>t.key===key&&(!revision||t.revision===revision)):null;if(key&&!tool){toast('工具已删除，请重新选择');return;}
+    const editKey=key||'custom-'+id();leaveForm();form={mode:'tool',draftId:id(),key:editKey,toolExisting:!!tool,toolBase:toolSnapshot(editKey),toolParents:tool?.revision?[tool.revision]:JSON.parse(toolSnapshot(editKey)),title:tool?.title||'',description:tool?.description||'',content:tool?.text||''};
     view='editor';panel.classList.remove('nav-open');persistDraft();render();$('[name=title]').focus();
 }
 function renderToolEditor(){
@@ -367,11 +382,13 @@ function renderToolEditor(){
 function saveTool(asCopy=false){
     const value={title:form.title.trim(),description:(form.description||'').trim(),text:form.content.trim()};
     if(!validTool(value))throw Error('请填写工具名称和提示词；名称最多 100 字，说明最多 300 字，正文最多 200000 字');
-    if(!asCopy&&toolSnapshot(form.key)!==form.toolBase){persistDraft();throw Error('这个工具已在其他页面修改或删除。草稿已保留，请另存为新工具，或返回列表重新编辑');}
-    GM_setValue(TOOL_PREFIX+(asCopy?'custom-'+id():form.key),value);toolChanged();
+    if(!form.toolParents&&form.toolBase==='null'&&toolSnapshot(form.key)==='[]'){form.toolParents=[];form.toolBase='[]';}
+    if(!asCopy&&(!form.toolParents||toolSnapshot(form.key)!==form.toolBase)){persistDraft();throw Error('这个工具已在其他页面修改、删除或升级了存储格式。草稿已保留，请另存为新工具，或返回列表重新编辑');}
+    commit('tool',asCopy?'custom-'+id():form.key,value,asCopy?[]:form.toolParents);
     GM_deleteValue(DRAFT+form.draftId);clearTimeout(draftTimer);form=null;view='prompt-tools';render();toast('工具提示词已保存');
 }
 function render() {
+    highlightObserver?.disconnect();
     renderSidebar(); updateStatus();
     if(storageBroken) { content.innerHTML=`<div class="empty"><h3>数据需要检查</h3><p>${esc(errorStatus)}</p><p>原数据已保留，暂时停止编辑与同步，避免覆盖。</p></div>`; return; }
     if(view==='library') renderLibrary();
@@ -380,7 +397,22 @@ function render() {
     if(view==='prompt-tools') renderPromptTools();
     if(view==='settings') renderSettings();
     if(view==='groups') renderGroups();
-    animateView();
+    mountVariableHighlight();animateView();
+}
+function mountVariableHighlight(){
+    const input=$('textarea[name=content]');if(!input)return;
+    const wrapper=document.createElement('div');wrapper.className='variable-editor';input.before(wrapper);
+    const mirror=document.createElement('div');mirror.className='variable-mirror';mirror.setAttribute('aria-hidden','true');
+    wrapper.append(mirror,input);input.classList.add('variable-textarea');
+    const align=()=>{mirror.style.width=(input.clientWidth+2)+'px';mirror.scrollTop=input.scrollTop;mirror.scrollLeft=input.scrollLeft;};
+    input.addEventListener('scroll',align);highlightObserver=new ResizeObserver(align);highlightObserver.observe(input);
+    updateVariableHighlight();align();
+}
+function updateVariableHighlight(){
+    const input=$('.variable-textarea'),mirror=$('.variable-mirror');if(!input||!mirror)return;
+    const text=input.value;let html='',end=0;
+    for(const match of text.matchAll(/\{\{([^{}\n]+)\}\}/g)){html+=esc(text.slice(end,match.index))+'<span class="editor-variable">'+esc(match[0])+'</span>';end=match.index+match[0].length;}
+    mirror.innerHTML=html+esc(text.slice(end))+'\n';mirror.scrollTop=input.scrollTop;mirror.scrollLeft=input.scrollLeft;
 }
 function updateLauncherPreview(value=settings.launcherSize) {
     const size=Core.launcherSize(value),slider=$('[name=launcherSize]'),preview=$('.launcher-preview');
@@ -411,8 +443,8 @@ function renderSettings() {
     const config=GM_getValue(PREFIX+'sync',{}), meta=GM_getValue(PREFIX+'sync_meta',{});
     let body='';
     if(settingsTab==='appearance') body=`<section class="section"><h3>外观</h3><p class="hint">本浏览器内所有网站共用这些偏好，修改后已打开的页面也会更新。</p><label class="setting-row">主题<select class="input" name="theme">${[['system','跟随系统'],['light','浅色'],['dark','深色']].map(([v,l])=>`<option value="${v}" ${settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="compact" ${settings.compact?'checked':''}>紧凑列表，显示更多提示词</label><label class="check"><input type="checkbox" name="opaque" ${settings.opaque?'checked':''}>减少透明效果（使用实色背景）</label><label class="check"><input type="checkbox" name="motion" ${settings.motion!==false?'checked':''}>启用微动效</label><p class="hint">跟随系统的减少动态效果偏好；关闭后即时切换，所有网站共用。</p></section><section class="section"><h3>收起为悬浮球</h3><div class="collapse-options">${[['button','点击 × 按钮'],['double','双击顶栏或侧栏'],['outside','点击窗口外区域']].map(([v,l])=>`<label><input type="checkbox" name="collapse" value="${v}" ${settings.collapseModes[v]?'checked':''}>${l}</label>`).join('')}</div><p class="hint collapse-hint">${Object.values(settings.collapseModes).some(Boolean)?'可同时勾选多种方式，所有网站共用。收起保留草稿；拖动、缩放和确认弹窗不会触发收起。':'未启用任何收起方式，窗口会保持展开。可在这里重新勾选。'}</p></section><section class="section"><h3>窗口</h3><label class="check"><input type="checkbox" name="syncPosition" ${settings.syncPosition?'checked':''}>所有网站共用悬浮图标和窗口位置、大小</label><p class="hint">开启后按窗口比例保持位置，自动适应不同窗口大小；关闭后各网站分别记忆。仅在本浏览器生效，不上传到坚果云。</p><p class="hint">拖动顶栏或侧栏移动窗口，四条边和四个角都能调整大小。绿色按钮切换最大化；窗口始终保持在可视区域内。</p>${btn('reset-window','恢复窗口和悬浮球位置')}</section><section class="section"><h3>键盘操作</h3><p class="hint">面板内 Ctrl / ⌘ + K 搜索，Ctrl / ⌘ + Enter 保存或复制。Tab 切换控件。Esc 关闭确认弹窗或返回列表。</p></section>`;
-    if(settingsTab==='sync') body=`<section class="section"><h3>坚果云 WebDAV</h3><p class="hint">连接后同步提示词、收藏、标签和分组。主题、窗口位置、草稿和凭据仅保存在本机。</p><label class="field"><span>服务地址</span><input class="input" value="https://dav.jianguoyun.com/dav/" readonly></label>${field('dav-username','坚果云账号',config.username||'','通常是注册邮箱')}${field('dav-password','应用密码',config.password||'','使用第三方应用密码，不是登录密码','password')}${field('dav-folder','同步文件夹',config.folder||'PromptHelper','PromptHelper')}<p class="hint">不同设备填写相同的账号和文件夹。文件夹自动创建；首版仅支持坚果云。<a href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noopener noreferrer">如何获取应用密码</a></p><label class="check"><input type="checkbox" name="dav-auto" ${config.auto?'checked':''}>启用自动同步</label><p class="hint">修改后延迟同步，至少间隔 60 秒；打开匹配网站时每 10 分钟检查云端。浏览器关闭后不会同步。</p><div class="inline" style="flex-wrap:wrap">${btn('save-sync','保存配置')}${btn('test-sync','测试连接','cloud')}${btn('sync','立即同步','sync')}${btn('disconnect','断开连接')}</div></section><section class="section"><h3>同步状态</h3><p class="hint sync-detail">${esc(syncBusy?'正在同步…':errorStatus||meta.error||'就绪')}${meta.lastSuccess?'<br>上次成功：'+new Date(meta.lastSuccess).toLocaleString('zh-CN'):''}</p><p class="hint">离线时正常使用。两端同时修改会保留冲突版本；在列表中选择需要保留的版本。HTTPS 保护传输，云端 JSON 为明文，请勿存放密码或密钥。</p></section>`;
-    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏和修改历史，不包含应用密码、草稿或优化 Prompt 工具内容。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.10.0 · 定制版<br>已禁用原作者地址的自动更新，避免覆盖定制功能。安装新版时保留脚本名称与命名空间，先导出备份。</p></section>`;
+    if(settingsTab==='sync') body=`<section class="section"><h3>坚果云 WebDAV</h3><p class="hint">连接后同步提示词、收藏、标签、分组和工具提示词。主题、窗口位置、草稿和凭据仅保存在本机。</p><label class="field"><span>服务地址</span><input class="input" value="https://dav.jianguoyun.com/dav/" readonly></label>${field('dav-username','坚果云账号',config.username||'','通常是注册邮箱')}${field('dav-password','应用密码',config.password||'','使用第三方应用密码，不是登录密码','password')}${field('dav-folder','同步文件夹',config.folder||'PromptHelper','PromptHelper')}<p class="hint">不同设备填写相同的账号和文件夹。文件夹自动创建；首版仅支持坚果云。<a href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noopener noreferrer">如何获取应用密码</a></p><label class="check"><input type="checkbox" name="dav-auto" ${config.auto?'checked':''}>启用自动同步</label><p class="hint">修改后延迟同步，至少间隔 60 秒；打开已启用网站时每 10 分钟检查云端。浏览器关闭后不会同步。所有设备请先更新至 3.11.0 或更高版本，避免旧端无法读取新版同步文件。</p><div class="inline" style="flex-wrap:wrap">${btn('save-sync','保存配置')}${btn('test-sync','测试连接','cloud')}${btn('sync','立即同步','sync')}${btn('disconnect','断开连接')}</div></section><section class="section"><h3>同步状态</h3><p class="hint sync-detail">${esc(syncBusy?'正在同步…':errorStatus||meta.error||'就绪')}${meta.lastSuccess?'<br>上次成功：'+new Date(meta.lastSuccess).toLocaleString('zh-CN'):''}</p><p class="hint">离线时正常使用。两端同时修改会保留冲突版本；在列表中选择需要保留的版本。HTTPS 保护传输，云端 JSON 为明文，请勿存放密码或密钥。</p></section>`;
+    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏、工具提示词和修改历史，不包含应用密码或草稿。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.11.0 · 定制版<br>已禁用原作者地址的自动更新，避免覆盖定制功能。安装新版时保留脚本名称与命名空间，先导出备份。</p></section>`;
     if(settingsTab==='appearance')body=launcherSettings()+body;
     if(settingsTab==='sites')body=siteSettings();
     content.innerHTML=viewHeader('设置')+`<div class="settings-tabs">${[['appearance','外观与窗口'],['sites','网站'],['sync','云同步'],['backup','备份']].map(([v,l])=>`<button class="btn ${settingsTab===v?'active':''}" data-action="settings-tab" data-key="${v}">${l}</button>`).join('')}</div><div class="scroll form-scroll">${body}</div>`;
@@ -562,7 +594,7 @@ async function syncNow(manual=true) {
     } finally {
         clearInterval(heartbeat);
         if(GM_getValue(PREFIX+'sync_lease',{}).owner===session) GM_deleteValue(PREFIX+'sync_lease');
-        syncBusy=false;refresh();updateStatus();if(isOpen){renderSidebar();if(view==='library')renderList();if($('.sync-detail'))$('.sync-detail').textContent=errorStatus||'同步完成 · '+new Date().toLocaleString('zh-CN');}
+        syncBusy=false;refresh();updateStatus();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='prompt-tools')renderPromptTools();if($('.sync-detail'))$('.sync-detail').textContent=errorStatus||'同步完成 · '+new Date().toLocaleString('zh-CN');}
         if(syncQueued){syncQueued=false;scheduleSync(60000);} else if(errorStatus)scheduleSync(60000);
     }
 }
@@ -623,18 +655,23 @@ shadow.addEventListener('click',async event=>{
         if(action==='groups'){navigate('groups');return;}
         if(action==='drafts'){navigate('drafts');return;}
         if(action==='prompt-tools'){navigate('prompt-tools');return;}
-        if(action==='copy-tool'){const tool=readTools().find(t=>t.key===target.dataset.key);if(tool)await copyText(tool.text);else {renderPromptTools();toast('工具已删除，请重新选择');}return;}
+        if(action==='copy-tool'){const tool=findTool(target);if(tool)await copyText(tool.text);else {renderPromptTools();toast('工具已删除或更新，请重新选择');}return;}
         if(action==='new-tool'){startToolEditor();return;}
-        if(action==='edit-tool'){startToolEditor(target.dataset.key);return;}
+        if(action==='edit-tool'){startToolEditor(target.dataset.key,target.dataset.toolRevision);return;}
         if(action==='save-tool-copy'&&form?.mode==='tool'){saveTool(true);return;}
+        if(action==='resolve-tool'||action==='resolve-tool-empty'){
+            const tool=findTool(target);if(!tool)return;
+            const snapshot=toolSnapshot(tool.key),empty=action==='resolve-tool-empty';
+            dialog('解决工具提示词冲突',`<p>${empty?(tool.builtin?'使用内置版本，移除当前修改版本。':'确认删除，移除当前修改版本。'):'保留此版本，移除其他冲突版本。'}修改历史仍包含在 JSON 备份中。</p>`,()=>{if(snapshot!==toolSnapshot(tool.key))throw Error('工具又有更新，请关闭弹窗后重试');commit('tool',tool.key,empty?null:{title:tool.title,description:tool.description,text:tool.text});renderPromptTools();},{label:empty?'确认':'保留此版本',danger:empty});return;
+        }
         if(action==='delete-tool'||action==='reset-tool'){
-            const tool=readTools().find(t=>t.key===target.dataset.key);if(!tool)return;
+            const tool=findTool(target);if(!tool)return;
             const reset=action==='reset-tool';if(reset!==tool.builtin)return;
-            const before=GM_getValue(TOOL_PREFIX+tool.key,null),snapshot=JSON.stringify(before);
-            dialog(reset?'恢复内置提示词？':'删除这个工具？',`<p>${esc(tool.title)}</p><p>${reset?'将恢复当前版本的内置名称、说明和正文。':'将从本浏览器各网站的工具列表移除；不会删除资料库中的提示词。'}</p>`,()=>{
+            const before={title:tool.title,description:tool.description,text:tool.text},snapshot=toolSnapshot(tool.key);
+            dialog(reset?'恢复内置提示词？':'删除这个工具？',`<p>${esc(tool.title)}</p><p>${reset?'移除此修改版本；没有其他修改版本时恢复内置内容。':'移除此工具版本；不会删除资料库中的提示词。'}此操作会在下次同步时传递到其他设备。</p>`,()=>{
                 if(toolSnapshot(tool.key)!==snapshot)throw Error('这个工具已在其他页面更新，请关闭弹窗后重新操作');
-                GM_deleteValue(TOOL_PREFIX+tool.key);toolChanged();renderPromptTools();
-                toast(reset?'已恢复内置提示词':'工具已删除','撤销',()=>{if(GM_getValue(TOOL_PREFIX+tool.key,null)!==null){toast('工具已有新的修改，未覆盖当前内容');return;}if(before!==null)GM_setValue(TOOL_PREFIX+tool.key,before);toolChanged();if(view==='prompt-tools')renderPromptTools();toast('已撤销');});
+                const deleted=commit('tool',tool.key,null,tool.revision?[tool.revision]:JSON.parse(snapshot));renderPromptTools();
+                toast(reset?'已移除修改版本':'工具版本已删除','撤销',()=>{commit('tool',tool.key,before,[deleted.id]);if(view==='prompt-tools')renderPromptTools();toast('已撤销');});
             },{label:reset?'恢复内置':'删除工具',danger:true});return;
         }
         if(action==='filter'){leaveForm();filter={kind:target.dataset.kind,key:target.dataset.key};selectedTag='';view='library';panel.classList.remove('nav-open');render();return;}
@@ -649,7 +686,7 @@ shadow.addEventListener('click',async event=>{
             const el=$('[name=content]'),start=el.selectionStart,end=el.selectionEnd,selection=el.value.slice(start,end);
             const replacement=action==='mark-variable'?'{{'+(selection||'变量')+'}}':selection.replace(/\{\{|\}\}/g,'');
             if(action==='unmark-variable'&&!selection){toast('请先选中需要恢复的变量（包含大括号）');return;}
-            el.setRangeText(replacement,start,end,'select');el.focus();form.content=el.value;persistDraft();return;
+            el.setRangeText(replacement,start,end,'select');el.focus();form.content=el.value;updateVariableHighlight();persistDraft();return;
         }
         if(action==='export-json'){refresh();download(Core.pack(ops),dated('json'));return;}
         if(action==='export-txt'){exportText();return;}
@@ -699,6 +736,7 @@ shadow.addEventListener('input',event=>{
         if(el.classList.contains('search-input')){query=el.value;clearTimeout(searchTimer);searchTimer=setTimeout(renderList,100);return;}
         if(view==='editor'&&form){
             if(['title','content','tags','output','description'].includes(el.name))form[el.name]=el.value;
+            if(el.name==='content')updateVariableHighlight();
             if(el.name.startsWith('variable-')){
                 const name=variables(form.content)[Number(el.name.slice(9))];form.values[name]=el.value;
                 form.output=Core.fill(form.content,form.values);$('[name=output]').value=form.output;
@@ -839,7 +877,8 @@ $('.topbar').addEventListener('dblclick',e=>{if(settings.collapseModes.double&&!
 document.addEventListener('pointerdown',e=>{
     if(isOpen&&settings.collapseModes.outside&&!activeDrag&&$('.overlay').hidden&&!e.composedPath().includes(host)&&e.button===0)collapsePanel();
 },true);
-shadow.addEventListener('keydown',e=>{
+function handleHelperKeydown(e){
+    if(e.isComposing||e.keyCode===229)return;
     if(!$('.overlay').hidden){
         if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeDialog();return;}
         if(e.key==='Tab'){
@@ -850,22 +889,31 @@ shadow.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopPropagation();navigate('library');$('.search-input')?.focus();}
     if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&form){e.preventDefault();e.stopPropagation();if(form.mode==='use')copyText(form.output);else try{savePrompt();}catch(error){toast(error.message);}}
     if(e.key==='Escape'&&view!=='library'){e.preventDefault();e.stopPropagation();back();}
-});
+}
+// Isolate host-page shortcuts before document capture; keep native editing defaults.
+let helperFocus=null;
+shadow.addEventListener('focusin',e=>{helperFocus=e.target;});
+for(const type of ['keydown','keypress','keyup','paste','copy','cut'])window.addEventListener(type,e=>{
+    if(!isOpen||!e.composedPath().includes(host))return;
+    if(helperFocus?.isConnected&&shadow.activeElement!==helperFocus)helperFocus.focus({preventScroll:true});
+    if(type==='keydown')handleHelperKeydown(e);
+    e.stopImmediatePropagation();
+},true);
+for(const type of ['beforeinput','input','change','compositionstart','compositionupdate','compositionend'])shadow.addEventListener(type,e=>{e.stopPropagation();});
 function adaptWindow(){if(settings.syncPosition)applySharedLayout();else if(isOpen)placePanel(true);else positionFromAnchor(true);}
 new ResizeObserver(()=>panel.style.setProperty('--header-height',$('.topbar').offsetHeight+'px')).observe($('.topbar'));
 window.addEventListener('resize',adaptWindow);window.visualViewport?.addEventListener('resize',adaptWindow);window.visualViewport?.addEventListener('scroll',adaptWindow);
 window.addEventListener('pagehide',persistDraft);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)persistDraft();else{try{receiveSettings(GM_getValue(SETTINGS_KEY,settings));applySharedLayout();refresh();if(isOpen){renderSidebar();if(view==='library')renderList();}scheduleSync(15000);}catch(error){toast(error.message);}}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)persistDraft();else{try{receiveSettings(GM_getValue(SETTINGS_KEY,settings));applySharedLayout();refresh();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='prompt-tools')renderPromptTools();}scheduleSync(15000);}catch(error){toast(error.message);}}});
 GM_addValueChangeListener(PREFIX+'changed',(_key,_old,_value,remote)=>{
     if(!remote)return;
-    try { refresh();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='groups')renderGroups();}updateStatus(); }catch(error){errorStatus=error.message;updateStatus();}
+    try { refresh();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='groups')renderGroups();if(view==='prompt-tools')renderPromptTools();}updateStatus(); }catch(error){errorStatus=error.message;updateStatus();}
 });
 GM_addValueChangeListener(PREFIX+'sync_meta',()=>updateStatus());
 GM_addValueChangeListener(PREFIX+'sync',()=>{scheduleSync();updateStatus();});
 GM_addValueChangeListener(SETTINGS_KEY,(_key,_old,value,remote)=>{if(remote)receiveSettings(value||{});});
 GM_addValueChangeListener(LAYOUT_KEY,(_key,_old,value,remote)=>{if(remote)applySharedLayout(value);});
 GM_addValueChangeListener(SITES_KEY,(_key,_old,value,remote)=>{scheduleSync();if(remote)refreshSiteSettings();});
-GM_addValueChangeListener(TOOL_CHANGED,(_key,_old,value,remote)=>{if(remote&&view==='prompt-tools'){const scroll=$('.tool-library')?.scrollTop||0;renderPromptTools();$('.tool-library').scrollTop=scroll;}});
 GM_registerMenuCommand('打开提示词助手',openPanel);
 GM_registerMenuCommand('提示词助手：云同步设置',()=>{openPanel();syncSettings();});
 // Remount only after actual removal; no perpetual polling or repeated style injection.

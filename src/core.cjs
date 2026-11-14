@@ -1,7 +1,7 @@
 'use strict';
 const Core = (() => {
-    const FORMAT = 'prompt-helper', VERSION = 3, MAX_OPS = 30000, MAX_BYTES = 20 * 1024 * 1024;
-    const entities = ['prompt', 'tag', 'group'];
+    const FORMAT = 'prompt-helper', VERSION = 4, MAX_OPS = 30000, MAX_BYTES = 20 * 1024 * 1024;
+    const entities = ['prompt', 'tag', 'group', 'tool'];
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const tags = value => [...new Set((Array.isArray(value) ? value : String(value).split(/[,，]/)).map(t => String(t).trim()).filter(Boolean))];
     const order = (a, b) => a.at - b.at || a.id.localeCompare(b.id);
@@ -11,6 +11,8 @@ const Core = (() => {
         if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('记录格式不正确');
         if (entity === 'prompt') {
             if (!isText(v.content, 200000) || !v.content.trim() || !isText(v.title, 300) || !Array.isArray(v.tags) || v.tags.length > 100 || !v.tags.every(t => isText(t, 100) && t.trim()) || typeof v.favorite !== 'boolean') throw Error('提示词内容或标签格式不正确');
+        } else if(entity==='tool') {
+            if(!isText(v.title,100)||!v.title.trim()||!isText(v.description,300)||!isText(v.text,200000)||!v.text.trim())throw Error('工具提示词格式不正确');
         } else {
             if (!isText(v.name, 100) || !v.name.trim() || !Number.isFinite(v.rank)) throw Error('分组或标签格式不正确');
             if (entity === 'tag' && !isText(v.group, 300)) throw Error('标签分组格式不正确');
@@ -54,6 +56,7 @@ const Core = (() => {
         const v = op.value;
         const value = v === null ? null : op.entity === 'prompt'
             ? {title:v.title,content:v.content,tags:[...v.tags],favorite:v.favorite}
+            : op.entity === 'tool' ? {title:v.title,description:v.description,text:v.text}
             : op.entity === 'group' ? {name:v.name,rank:v.rank,...(v.color !== undefined ? {color:v.color} : {})} : {name:v.name,rank:v.rank,group:v.group};
         return {id:op.id,entity:op.entity,key:op.key,at:op.at,device:op.device,parents:[...new Set(op.parents)].sort(),value};
     }
@@ -73,13 +76,13 @@ const Core = (() => {
             if (!buckets.has(id)) buckets.set(id, []);
             buckets.get(id).push(op);
         }
-        const result = {prompt:[],tag:[],group:[],heads:new Map()};
+        const result = {prompt:[],tag:[],group:[],tool:[],heads:new Map()};
         for (const list of buckets.values()) {
             const replaced = new Set(list.flatMap(op => op.parents));
             const heads = list.filter(op => !replaced.has(op.id)).sort(order);
             const {entity,key} = list[0];
             result.heads.set(entity + ':' + key, heads);
-            const visible = entity === 'prompt' ? heads : heads.slice(-1);
+            const visible = entity === 'prompt'||entity==='tool' ? heads : heads.slice(-1);
             for (const op of visible) if (op.value !== null) result[entity].push({...op.value,key,revision:op.id,at:op.at,conflict:heads.length > 1,deletedConflict:heads.some(h => h.value === null)});
         }
         // The built-in ungrouped bucket has appearance metadata but is not a tag destination.
@@ -95,7 +98,7 @@ const Core = (() => {
         if (new TextEncoder().encode(text).length > MAX_BYTES) throw Error('文件超过 20 MB，请先拆分或整理备份');
         let data;
         try { data = JSON.parse(text); } catch { throw Error('文件不是有效的 JSON 备份'); }
-        if (data.format !== FORMAT || data.version !== VERSION) throw Error('备份版本不支持，请使用提示词助手 3 的 JSON 备份');
+        if (data.format !== FORMAT || ![3,VERSION].includes(data.version)) throw Error('备份版本不支持，请更新提示词助手后重试');
         return validate(data.operations).map(canonical);
     }
     function parseLegacy(text) {
