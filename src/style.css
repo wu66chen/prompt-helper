@@ -18,11 +18,10 @@
 .ball:hover{background:transparent;filter:brightness(1.035)}.ball:active{cursor:grabbing}.ball .launcher-icon{display:block;width:100%;height:100%;stroke:none;overflow:visible;pointer-events:none}
 .launcher-settings .setting-row{font-weight:600}.launcher-settings output{font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
 .launcher-preview{height:148px;display:grid;place-items:center;border:1px solid var(--line);border-radius:12px;background:var(--canvas);overflow:hidden}
-.launcher-preview .launcher-icon{display:block;width:var(--preview-size);height:var(--preview-size);object-fit:contain;pointer-events:none;filter:drop-shadow(0 2px 3px #23394a30)}
+.launcher-preview .launcher-icon{display:block;width:var(--preview-size);height:var(--preview-size);object-fit:contain;pointer-events:none;filter:drop-shadow(0 1px 1px #23394a1a)}
 .launcher-range{display:block;width:100%;min-height:32px;margin:10px 0 0;accent-color:var(--blue);cursor:ew-resize}
 .launcher-size-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
-.ball .launcher-icon{object-fit:contain;-webkit-user-drag:none;filter:drop-shadow(0 1px 1px #23394a40) drop-shadow(0 3px 4px #23394a24)}
-:host([data-theme=dark]) .ball .launcher-icon{filter:drop-shadow(0 1px 1px #0005) drop-shadow(0 3px 5px #0006)}
+.ball .launcher-icon{object-fit:contain;-webkit-user-drag:none;filter:drop-shadow(0 1px 1px #23394a1a)}
 .tag-filter{display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin-top:12px;max-height:min(112px,18vh);overflow:auto;padding:2px;overscroll-behavior:contain}
 .tag-tile{flex:0 0 auto;max-width:100%;min-height:27px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:var(--canvas);color:var(--muted);font-size:12px;line-height:1.5;text-align:left;overflow-wrap:anywhere;white-space:normal}
 .tag-tile:hover{background:var(--hover);color:var(--text)}.tag-tile.active{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:600}
