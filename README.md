@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="assets/readme/banner.svg" alt="提示词助手：常用提示词，随手可用。" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/seal-banner-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/readme/seal-banner-light.png">
+    <img src="assets/readme/seal-banner-light.png" alt="提示词助手：常用提示词，随手可用。右侧是半透明树脂材质、抬头坐卧的小海豹 Logo。" width="100%">
+  </picture>
 </p>
 
 # 提示词助手
@@ -11,6 +15,8 @@
 [![MIT License](https://img.shields.io/github/license/wu66chen/prompt-helper)](LICENSE)
 
 **[安装 / 更新到 3.8.2](https://raw.githubusercontent.com/wu66chen/prompt-helper/main/prompt-helper.user.js)** · [开始使用](#安装与更新) · [坚果云配置](docs/sync.md) · [使用指南](docs/usage.md)
+
+**小海豹，常驻网页的一角。** 它也是实际使用中的悬浮入口：点击展开提示词窗口，拖动改变位置。大小可在设置中调整为 48–128px；浅深主题保留同一只海豹的树脂质感。[查看透明 Logo](assets/readme/seal.png)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/window-dark.png">

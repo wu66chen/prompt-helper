@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>提示词助手 · 海豹品牌展示</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#fff}
+.art{width:1280px;height:320px;position:relative;overflow:hidden;background:linear-gradient(120deg,#f4f7fa,#e5edf3);color:#22364b}
+.copy{position:absolute;left:84px;top:82px;z-index:1}h1{font-size:72px;line-height:1.2;margin:0 0 24px;font-weight:700;letter-spacing:2px}p{font-size:30px;line-height:1.4;margin:0;color:#4b6075}
+.seal{position:absolute;left:874px;top:14px;width:290px;height:290px;object-fit:contain;filter:drop-shadow(0 10px 8px #1c354e24)}
+.dark{background:linear-gradient(120deg,#17232e,#263d4e);color:#f0f5f9}.dark p{color:#bdccda}.dark .seal{filter:drop-shadow(0 12px 12px #050d1660)}
+.social{height:640px}.social .copy{left:120px;top:227px}.social h1{font-size:96px;margin-bottom:28px}.social p{font-size:34px}.social .seal{left:754px;top:106px;width:410px;height:410px}
+</style>
+<main class="art" aria-label="提示词助手：常用提示词，随手可用。半透明树脂海豹 Logo。">
+ <div class="copy"><h1>提示词助手</h1><p>常用提示词，随手可用。</p></div>
+ <img class="seal" src="seal.png" alt="半透明树脂材质、抬头坐卧的小海豹">
+</main>
+<script>const q=new URLSearchParams(location.search),art=document.querySelector('.art');if(q.get('theme')==='dark')art.classList.add('dark');if(q.get('format')==='social')art.classList.add('social');</script>
+</html>

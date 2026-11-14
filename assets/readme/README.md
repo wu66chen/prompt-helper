@@ -4,17 +4,27 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [banner.svg](banner.svg) | 1280 × 320 首页横幅，浅色和深色画布共用 |
+| [seal.png](seal.png) | 已确认的 B2 半透明树脂海豹透明母稿，1024 × 1024 |
+| [seal-banner-light.png](seal-banner-light.png)、[seal-banner-dark.png](seal-banner-dark.png) | 1280 × 320 海豹首页横幅，通过 picture 随浅深主题选择 |
 | [window-light.png](window-light.png)、[window-dark.png](window-dark.png) | 3.8.2 的实际界面，使用示例数据与本地演示背景 |
 | [settings-light.png](settings-light.png) | 悬浮图标尺寸设置示例 |
-| [social.svg](social.svg) | 分享预览图的可编辑矢量源文件 |
-| [social.png](social.png) | 1280 × 640、不透明的分享预览图，约 110 KiB |
+| [seal-layout.html](seal-layout.html) | 横幅与分享图的排版源文件，直接引用海豹透明母稿 |
+| [render.cjs](render.cjs) | 在开发环境中重新导出展示图的脚本 |
+| [social.png](social.png) | 1280 × 640、不透明的海豹分享预览图，小于 1 MB |
 
-横幅与分享图不含外部资源或字体依赖。分享图可在 GitHub 仓库的 Settings → General → Social preview 上传；仅提交本文件不会自动设置 GitHub 的分享图片。
+横幅与分享图使用同一只海豹，不改变角色造型或树脂材质。排版使用系统字体，不请求外部资源；PNG 导出可避免 GitHub 图片环境的字体与外链限制。对应标题和标语也保留为首页的 Markdown 正文。
 
-## About 建议值
+在项目根目录完成开发环境的 `npm ci` 后，可用以下命令重新生成两张横幅和分享图（需要本机 Google Chrome）：
 
-以下为与当前 README 一致的仓库元数据建议，不会随提交自动应用。
+```sh
+node assets/readme/render.cjs
+```
+
+分享图可在 GitHub 仓库的 Settings → General → Social preview → Edit → Upload an image 上传；仅提交 PNG 不会自动设置仓库分享图片。
+
+## About 与 Topics
+
+以下内容已通过 GitHub API 应用到仓库，简介与首页说明一致。
 
 **Description**
 
@@ -28,4 +38,4 @@
 javascript, tampermonkey, userscript, prompt-management, webdav
 ```
 
-项目暂无独立文档网站，因此不设置 Website。更新简介时，可替换旧简介中的“多平台独立深浅主题”等已过时描述。
+项目暂无独立文档网站，因此不设置 Website。
