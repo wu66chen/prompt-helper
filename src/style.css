@@ -15,13 +15,13 @@
 .traffic [data-action=maximize] svg{width:10px;height:10px;fill:currentColor;stroke:none}.traffic button:disabled{cursor:default;opacity:.5}.traffic button:disabled:hover svg{opacity:0}
 .collapse-options{display:grid;gap:10px}.collapse-options label{display:flex;align-items:center;gap:8px;font-size:12px}.collapse-options input{accent-color:var(--blue)}
 .ball{width:56px;height:56px;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:16px;background:transparent;backdrop-filter:none;box-shadow:none;user-select:none}
-.ball:hover{background:transparent;filter:brightness(1.035)}.ball:active{cursor:grabbing}.ball .launcher-icon{display:block;width:100%;height:100%;stroke:none;overflow:visible;pointer-events:none}
+.ball:hover{background:transparent;filter:brightness(1.015)}.ball:active{cursor:grabbing}.ball .launcher-icon{display:block;width:100%;height:100%;stroke:none;overflow:visible;pointer-events:none}
 .launcher-settings .setting-row{font-weight:600}.launcher-settings output{font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
 .launcher-preview{height:148px;display:grid;place-items:center;border:1px solid var(--line);border-radius:12px;background:var(--canvas);overflow:hidden}
-.launcher-preview .launcher-icon{display:block;width:var(--preview-size);height:var(--preview-size);object-fit:contain;pointer-events:none;filter:drop-shadow(0 1px 1px #23394a1a)}
+.launcher-preview .launcher-icon{display:block;width:var(--preview-size);height:var(--preview-size);object-fit:contain;pointer-events:none;filter:brightness(1.06) drop-shadow(0 1px 1px #23394a1a)}
 .launcher-range{display:block;width:100%;min-height:32px;margin:10px 0 0;accent-color:var(--blue);cursor:ew-resize}
 .launcher-size-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
-.ball .launcher-icon{object-fit:contain;-webkit-user-drag:none;filter:drop-shadow(0 1px 1px #23394a1a)}
+.ball .launcher-icon{object-fit:contain;-webkit-user-drag:none;filter:brightness(1.06) drop-shadow(0 1px 1px #23394a1a)}
 .tag-filter{display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin-top:12px;max-height:min(112px,18vh);overflow:auto;padding:2px;overscroll-behavior:contain}
 .tag-tile{flex:0 0 auto;max-width:100%;min-height:27px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:var(--canvas);color:var(--muted);font-size:12px;line-height:1.5;text-align:left;overflow-wrap:anywhere;white-space:normal}
 .tag-tile:hover{background:var(--hover);color:var(--text)}.tag-tile.active{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:600}

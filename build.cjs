@@ -5,7 +5,7 @@ const matches = JSON.parse(fs.readFileSync(path.join(dir,'userscript-matches.jso
 const header = `// ==UserScript==
 // @name         提示词助手
 // @namespace    http://tampermonkey.net/
-// @version      3.8.3
+// @version      3.8.4
 // @description  macOS 风格提示词资料库：分组、全文搜索、变量填写、草稿与坚果云 WebDAV 同步。
 // @author       Wesley Liu
 ${matches}
