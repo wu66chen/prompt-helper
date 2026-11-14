@@ -4,7 +4,7 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  const browser=await chromium.launch({channel:'chrome',headless:true});
  const context=await browser.newContext({viewport:{width:1440,height:1000}}),pages=new Set(),errors=[];
  // A shared GM store across unrelated origins, unlike localStorage/BroadcastChannel.
- const store={'ph3_settings_alpha.test':{theme:'dark',compact:false,collapse:'double'},'ph3_settings_beta.test':{theme:'light'},'ph3_layout_alpha.test':{anchor:{x:1300,y:900},size:{w:680,h:650},direction:'up-left'}};
+ const store={ph3_sites_global:{custom:['alpha.test','beta.test','gamma.test','delta.test'].map(host=>({host,enabled:true}))},'ph3_settings_alpha.test':{theme:'dark',compact:false,collapse:'double'},'ph3_settings_beta.test':{theme:'light'},'ph3_layout_alpha.test':{anchor:{x:1300,y:900},size:{w:680,h:650},direction:'up-left'}};
  await context.route('**/*',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><title>跨网站设置验证</title><body style="background:#dce1e8">网站测试背景</body>'}));
  await context.exposeBinding('__writeGM',async({page},key,value,remove)=>{
    if(remove)delete store[key];else store[key]=value;

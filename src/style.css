@@ -86,3 +86,6 @@
 .panel:not(.opaque) .content{background:var(--surface)}
 .panel:not(.opaque)::after{display:none}
 }
+
+/* Website preferences use rows so long domains wrap without widening the panel. */
+.site-current,.site-domain{overflow-wrap:anywhere;word-break:break-word}.site-current{font-size:14px;font-weight:600;margin:6px 0}.site-rule{padding:10px 0;border-bottom:1px solid var(--line)}.site-rule:last-child{border-bottom:0}.site-rule .check{margin:0;min-width:0}.site-rule>.check+.check,.site-rule-main+.check{margin-top:8px;color:var(--muted);font-size:11px}.site-rule-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.site-rule-main>.check{flex:1}.site-rule-main>.btn{flex-shrink:0}.site-add-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.site-add-actions .check{margin:0}.settings-tabs{flex-wrap:wrap}

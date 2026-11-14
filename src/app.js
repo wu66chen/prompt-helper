@@ -1,7 +1,7 @@
 if (window.top !== window.self || document.getElementById('db-prompt-helper-root')) return;
 const {esc, tags, project, variables} = Core;
 const PREFIX = 'ph3_', OP = PREFIX+'op_', DRAFT = PREFIX+'draft_';
-const site = location.hostname, id = () => crypto.randomUUID();
+const site = location.hostname, id = () => crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
 function stableId(text) {
     // Deterministic migration IDs across devices; each changed legacy value gets its own revision.
     const seeds=[2166136261,2246822519,3266489917,668265263];
@@ -350,14 +350,31 @@ function updateLauncherPreview(value=settings.launcherSize) {
 function launcherSettings() {
     return `<section class="section launcher-settings"><div class="setting-row"><label for="launcher-size">悬浮图标大小</label><output data-launcher-size for="launcher-size">${settings.launcherSize} px</output></div><div class="launcher-preview" style="--preview-size:${settings.launcherSize}px" aria-hidden="true">${LAUNCHER}</div><input id="launcher-size" name="launcherSize" class="launcher-range" type="range" min="48" max="128" step="4" value="${settings.launcherSize}" aria-valuetext="${settings.launcherSize} 像素" aria-describedby="launcher-size-hint"><div class="launcher-size-footer"><span>48 px</span>${btn('reset-launcher-size','恢复默认 72 px')}<span>128 px</span></div><p id="launcher-size-hint" class="hint">拖动滑块预览，松开后自动保存；也可用方向键微调。图标与点击区域一起缩放，所有网站共用。</p></section>`;
 }
+function showWebsiteSettings(){openPanel();settingsTab='sites';navigate('settings');}
+function siteSettings(){
+    const rules=readSites(),enabled=siteEnabled();
+    const check=(name,host,label,on)=>`<label class="check"><input type="checkbox" name="${name}" data-host="${esc(host)}" ${on?'checked':''} ${name==='site-custom-subdomains'&&/^\[|^\d+(?:\.\d+){3}$|^localhost$/.test(host)?'disabled title="IP 地址和 localhost 不适用"':''}>${label}</label>`;
+    return `<section class="section"><h3>当前网站</h3><p class="site-current">${esc(site)}</p><p class="hint">${enabled?'已启用':'未启用'} · 修改后刷新目标网页生效。关闭网站支持不会删除提示词。</p>${!enabled?btn('site-enable-current','启用当前网站'):''}</section><section class="section"><h3>添加网站</h3><form data-form="add-site"><label class="field"><span>域名或网页地址</span><input class="input" name="site-host" placeholder="例如 example.com 或 https://example.com/chat" maxlength="2048" required></label><div class="site-add-actions"><label class="check"><input type="checkbox" name="site-include-subdomains">同时支持此域名的子域名</label><button class="btn primary" type="submit">添加网站</button></div></form><p class="hint">按域名管理，不区分路径、协议和端口。添加后请刷新目标网页，并确保 Tampermonkey 已获得该网站的运行权限。</p></section><section class="section"><h3>自定义网站 <span class="hint">${rules.custom.length} 个</span></h3>${rules.custom.length?rules.custom.map(r=>`<div class="site-rule"><div class="site-rule-main">${check('site-custom-enabled',r.host,`<span class="site-domain">${esc(r.host)}</span>`,r.enabled)}${btn('site-remove','删除',null,`data-host="${esc(r.host)}"`)}</div>${check('site-custom-subdomains',r.host,'包含子域名',r.subdomains)}</div>`).join(''):'<p class="hint">尚未添加自定义网站。</p>'}<p class="hint">更具体的域名规则优先（包括默认网站）。删除规则后，是否显示入口由剩余规则决定。</p></section><section class="section"><h3>默认网站</h3><p class="hint">默认包含各域名的子域名，可分别停用或重新启用。</p>${DEFAULT_SITES.map(h=>`<div class="site-rule">${check('site-default',h,`<span class="site-domain">${esc(h)}</span>`,!rules.disabledDefaults.includes(h))}</div>`).join('')}</section><section class="section"><p class="hint">网站名单在本浏览器的同一脚本安装中共用，不上传到坚果云。即使当前网站已停用，也可以从 Tampermonkey 菜单的“提示词助手：网站管理”恢复支持。浏览器内部页面和扩展页面不支持。</p></section>`;
+}
+function refreshSiteSettings(){
+    if(view!=='settings'||settingsTab!=='sites')return;
+    const value=$('[name=site-host]')?.value||'',checked=$('[name=site-include-subdomains]')?.checked||false,focused=shadow.activeElement?.name,focusedHost=shadow.activeElement?.dataset.host,scroll=$('.form-scroll')?.scrollTop||0;
+    renderSettings();$('[name=site-host]').value=value;$('[name=site-include-subdomains]').checked=checked;$('.form-scroll').scrollTop=scroll;
+    if(['site-host','site-include-subdomains'].includes(focused))$(`[name=${focused}]`)?.focus({preventScroll:true});
+    else if(focusedHost)Array.from(shadow.querySelectorAll('input[data-host]')).find(el=>el.name===focused&&el.dataset.host===focusedHost)?.focus({preventScroll:true});
+}
+function saveSites(change){
+    const next=SiteRules.normalize(change(readSites()),DEFAULT_SITES);GM_setValue(SITES_KEY,next);scheduleSync();refreshSiteSettings();toast('网站规则已保存，刷新目标网页后生效');
+}
 function renderSettings() {
     const config=GM_getValue(PREFIX+'sync',{}), meta=GM_getValue(PREFIX+'sync_meta',{});
     let body='';
     if(settingsTab==='appearance') body=`<section class="section"><h3>外观</h3><p class="hint">本浏览器内所有网站共用这些偏好，修改后已打开的页面也会更新。</p><label class="setting-row">主题<select class="input" name="theme">${[['system','跟随系统'],['light','浅色'],['dark','深色']].map(([v,l])=>`<option value="${v}" ${settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="compact" ${settings.compact?'checked':''}>紧凑列表，显示更多提示词</label><label class="check"><input type="checkbox" name="opaque" ${settings.opaque?'checked':''}>减少透明效果（使用实色背景）</label><label class="check"><input type="checkbox" name="motion" ${settings.motion!==false?'checked':''}>启用微动效</label><p class="hint">跟随系统的减少动态效果偏好；关闭后即时切换，所有网站共用。</p></section><section class="section"><h3>收起为悬浮球</h3><div class="collapse-options">${[['button','点击 × 按钮'],['double','双击顶栏或侧栏'],['outside','点击窗口外区域']].map(([v,l])=>`<label><input type="checkbox" name="collapse" value="${v}" ${settings.collapseModes[v]?'checked':''}>${l}</label>`).join('')}</div><p class="hint collapse-hint">${Object.values(settings.collapseModes).some(Boolean)?'可同时勾选多种方式，所有网站共用。收起保留草稿；拖动、缩放和确认弹窗不会触发收起。':'未启用任何收起方式，窗口会保持展开。可在这里重新勾选。'}</p></section><section class="section"><h3>窗口</h3><label class="check"><input type="checkbox" name="syncPosition" ${settings.syncPosition?'checked':''}>所有网站共用悬浮图标和窗口位置、大小</label><p class="hint">开启后按窗口比例保持位置，自动适应不同窗口大小；关闭后各网站分别记忆。仅在本浏览器生效，不上传到坚果云。</p><p class="hint">拖动顶栏或侧栏移动窗口，四条边和四个角都能调整大小。绿色按钮切换最大化；窗口始终保持在可视区域内。</p>${btn('reset-window','恢复窗口和悬浮球位置')}</section><section class="section"><h3>键盘操作</h3><p class="hint">面板内 Ctrl / ⌘ + K 搜索，Ctrl / ⌘ + Enter 保存或复制。Tab 切换控件。Esc 关闭确认弹窗或返回列表。</p></section>`;
     if(settingsTab==='sync') body=`<section class="section"><h3>坚果云 WebDAV</h3><p class="hint">连接后同步提示词、收藏、标签和分组。主题、窗口位置、草稿和凭据仅保存在本机。</p><label class="field"><span>服务地址</span><input class="input" value="https://dav.jianguoyun.com/dav/" readonly></label>${field('dav-username','坚果云账号',config.username||'','通常是注册邮箱')}${field('dav-password','应用密码',config.password||'','使用第三方应用密码，不是登录密码','password')}${field('dav-folder','同步文件夹',config.folder||'PromptHelper','PromptHelper')}<p class="hint">不同设备填写相同的账号和文件夹。文件夹自动创建；首版仅支持坚果云。<a href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noopener noreferrer">如何获取应用密码</a></p><label class="check"><input type="checkbox" name="dav-auto" ${config.auto?'checked':''}>启用自动同步</label><p class="hint">修改后延迟同步，至少间隔 60 秒；打开匹配网站时每 10 分钟检查云端。浏览器关闭后不会同步。</p><div class="inline" style="flex-wrap:wrap">${btn('save-sync','保存配置')}${btn('test-sync','测试连接','cloud')}${btn('sync','立即同步','sync')}${btn('disconnect','断开连接')}</div></section><section class="section"><h3>同步状态</h3><p class="hint sync-detail">${esc(syncBusy?'正在同步…':errorStatus||meta.error||'就绪')}${meta.lastSuccess?'<br>上次成功：'+new Date(meta.lastSuccess).toLocaleString('zh-CN'):''}</p><p class="hint">离线时正常使用。两端同时修改会保留冲突版本；在列表中选择需要保留的版本。HTTPS 保护传输，云端 JSON 为明文，请勿存放密码或密钥。</p></section>`;
-    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏和修改历史，不包含应用密码或草稿。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.8.4 · 定制版<br>已禁用原作者地址的自动更新，避免覆盖定制功能。安装新版时保留脚本名称与命名空间，先导出备份。</p></section>`;
+    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏和修改历史，不包含应用密码或草稿。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.9.0 · 定制版<br>已禁用原作者地址的自动更新，避免覆盖定制功能。安装新版时保留脚本名称与命名空间，先导出备份。</p></section>`;
     if(settingsTab==='appearance')body=launcherSettings()+body;
-    content.innerHTML=viewHeader('设置')+`<div class="settings-tabs">${[['appearance','外观与窗口'],['sync','云同步'],['backup','备份']].map(([v,l])=>`<button class="btn ${settingsTab===v?'active':''}" data-action="settings-tab" data-key="${v}">${l}</button>`).join('')}</div><div class="scroll form-scroll">${body}</div>`;
+    if(settingsTab==='sites')body=siteSettings();
+    content.innerHTML=viewHeader('设置')+`<div class="settings-tabs">${[['appearance','外观与窗口'],['sites','网站'],['sync','云同步'],['backup','备份']].map(([v,l])=>`<button class="btn ${settingsTab===v?'active':''}" data-action="settings-tab" data-key="${v}">${l}</button>`).join('')}</div><div class="scroll form-scroll">${body}</div>`;
     if(syncBusy) $$('[data-action=sync],[data-action=test-sync]').forEach(b=>b.disabled=true);
 }
 function groupOptions(selected) { return `<option value="">未分组</option>`+state.group.map(g=>`<option value="${esc(g.key)}" ${selected===g.key?'selected':''}>${esc(g.name)}</option>`).join(''); }
@@ -474,6 +491,7 @@ async function testSync() {
     finally { syncBusy=false;updateStatus();$$('[data-action=sync],[data-action=test-sync]').forEach(b=>b.disabled=false); }
 }
 async function syncNow(manual=true) {
+    if(!manual&&!siteEnabled())return;
     if(storageBroken) throw Error('本地数据需要检查，暂时不能同步');
     if(syncBusy) { syncQueued=true; return; }
     const config=GM_getValue(PREFIX+'sync',{});
@@ -508,6 +526,7 @@ async function syncNow(manual=true) {
 }
 function scheduleSync(delay=15000) {
     clearTimeout(autoTimer);
+    if(!siteEnabled())return;
     const config=GM_getValue(PREFIX+'sync',{});
     if(!config.auto||!config.username||storageBroken)return;
     if(syncBusy){syncQueued=true;return;}
@@ -537,6 +556,10 @@ shadow.addEventListener('click',async event=>{
     if(action==='dialog-confirm')return;
     try {
         if(action==='dialog-cancel'){closeDialog();return;}
+        if(action==='site-remove'){saveSites(r=>({...r,custom:r.custom.filter(x=>x.host!==target.dataset.host)}));return;}
+        if(action==='site-enable-current'){
+            saveSites(r=>{const current=SiteRules.parse(site).host;if(DEFAULT_SITES.includes(current))r.disabledDefaults=r.disabledDefaults.filter(h=>h!==current);else {const found=r.custom.find(x=>x.host===current);if(found)found.enabled=true;else r=SiteRules.add(r,current,false,DEFAULT_SITES);}return r;});return;
+        }
         if(action==='open'){if(suppressBallClick){suppressBallClick=false;return;}openPanel();return;}
         if(action==='collapse'){collapsePanel();return;}
         if(action==='maximize'){
@@ -632,6 +655,8 @@ shadow.addEventListener('input',event=>{
 shadow.addEventListener('change',event=>{
     const el=event.target;
     try {
+        if(el.name==='site-default'){saveSites(r=>({...r,disabledDefaults:el.checked?r.disabledDefaults.filter(h=>h!==el.dataset.host):[...r.disabledDefaults,el.dataset.host]}));return;}
+        if(el.name==='site-custom-enabled'||el.name==='site-custom-subdomains'){saveSites(r=>({...r,custom:r.custom.map(x=>x.host===el.dataset.host?{...x,[el.name==='site-custom-enabled'?'enabled':'subdomains']:el.checked}:x)}));return;}
         if(el.name==='launcherSize'){saveSettings({launcherSize:el.value});return;}
         if(el.name==='collapse'){
             saveSettings({collapseModes:{[el.value]:el.checked}});return;
@@ -657,6 +682,10 @@ shadow.addEventListener('submit',event=>{
     event.preventDefault();
     try {
         const formEl=event.target, type=formEl.dataset.form;
+        if(type==='add-site'){
+            const value=formEl.elements['site-host'].value,subdomains=formEl.elements['site-include-subdomains'].checked;
+            saveSites(r=>SiteRules.add(r,value,subdomains,DEFAULT_SITES));$('[name=site-host]').value='';$('[name=site-host]').focus();return;
+        }
         if(type==='new-group'){
             const name=formEl.elements['group-name'].value.trim();if(!name||state.group.some(g=>g.name===name))throw Error('请输入不重复的分组名称');
             commit('group',id(),{name,rank:state.group.length});render();
@@ -780,6 +809,7 @@ GM_addValueChangeListener(PREFIX+'sync_meta',()=>updateStatus());
 GM_addValueChangeListener(PREFIX+'sync',()=>{scheduleSync();updateStatus();});
 GM_addValueChangeListener(SETTINGS_KEY,(_key,_old,value,remote)=>{if(remote)receiveSettings(value||{});});
 GM_addValueChangeListener(LAYOUT_KEY,(_key,_old,value,remote)=>{if(remote)applySharedLayout(value);});
+GM_addValueChangeListener(SITES_KEY,(_key,_old,value,remote)=>{scheduleSync();if(remote)refreshSiteSettings();});
 GM_registerMenuCommand('打开提示词助手',openPanel);
 GM_registerMenuCommand('提示词助手：云同步设置',()=>{openPanel();syncSettings();});
 // Remount only after actual removal; no perpetual polling or repeated style injection.

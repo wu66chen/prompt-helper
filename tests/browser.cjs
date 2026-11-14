@@ -19,6 +19,7 @@ async function setup(page){
         window.GM_getValue=(k,f)=>{const s=localStorage.getItem('gm:'+k);return s===null?f:JSON.parse(s);};
         window.GM_setValue=(k,v)=>{const old=GM_getValue(k);localStorage.setItem('gm:'+k,JSON.stringify(v));(listeners.get(k)||[]).forEach(fn=>fn(k,old,v,false));channel.postMessage({k,old,v});};
         window.GM_deleteValue=k=>localStorage.removeItem('gm:'+k);
+        if(!localStorage.getItem('gm:ph3_sites_global'))GM_setValue('ph3_sites_global',{custom:[{host:'127.0.0.1',enabled:true}]});
         window.GM_listValues=()=>Object.keys(localStorage).filter(k=>k.startsWith('gm:')).map(k=>k.slice(3));
         window.GM_addValueChangeListener=(k,fn)=>{listeners.set(k,[...(listeners.get(k)||[]),fn]);};
         channel.onmessage=e=>{const {k,old,v}=e.data;(listeners.get(k)||[]).forEach(fn=>fn(k,old,v,true));};
