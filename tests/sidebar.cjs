@@ -1,0 +1,60 @@
+const {chromium}=require('playwright');
+const {setup}=require('./browser.cjs');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),C=require('../src/core.cjs');
+const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'prompt-helper.user.js'),'utf8');
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));await setup(page);
+ const root=page.locator('#db-prompt-helper-root'),panel=root.locator('.panel'),sidebar=root.locator('.sidebar');
+ const open=async()=>{await root.locator('.ball').click();await page.waitForTimeout(200);};await open();
+ await root.locator('[data-action=groups]').click();
+ for(const name of ['常用工作提示词与写作分组','个人生活']){await root.locator('[name=group-name]').fill(name);await root.locator('[data-form=new-group] button').click();}
+ const key=await root.locator('[name=rename-group]').first().getAttribute('data-key');
+ const nav=()=>root.locator(`[data-kind=group][data-key="${key}"]`);
+ await root.locator(`[name=group-color][data-key="${key}"]`).fill('#c75238');
+ await root.locator('[name=group-color][data-key=""]').fill('#a453b2');
+ assert.equal(await root.locator('[data-kind=group][data-key=""] .group-icon').evaluate(el=>getComputedStyle(el).color),'rgb(164, 83, 178)');
+ assert.equal(await nav().locator('.group-icon').evaluate(el=>getComputedStyle(el).color),'rgb(199, 82, 56)');
+ await root.locator(`[name=rename-group][data-key="${key}"]`).fill('常用工作提示词与写作分组（完整名称）');await root.locator(`[name=rename-group][data-key="${key}"]`).press('Tab');
+ await root.locator(`[data-action=group-down][data-key="${key}"]`).click();
+ assert.equal(await nav().locator('.group-icon').evaluate(el=>getComputedStyle(el).color),'rgb(199, 82, 56)');
+ await root.locator('[data-action=toggle-sidebar]').click();
+ assert.equal(await sidebar.evaluate(el=>el.getBoundingClientRect().width),56);assert.equal(await nav().locator('.label').isVisible(),false);
+ await nav().hover();assert.equal(await root.locator('.sidebar-tooltip').innerText(),'常用工作提示词与写作分组（完整名称）');
+ await nav().focus();assert.equal(await root.locator('.sidebar-tooltip').isVisible(),true);
+ await nav().click();assert.equal(await nav().getAttribute('aria-current'),'page');
+ console.log('PASS colors survive rename/order; icon rail retains navigation, tooltip and keyboard names');
+ async function drag(locator,dx,dy){const r=await locator.boundingBox();await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();await page.mouse.move(r.x+r.width/2+dx,r.y+r.height/2+dy,{steps:10});await page.mouse.up();}
+ let before=await panel.boundingBox();await drag(nav(),-90,-35);let after=await panel.boundingBox();assert.ok(Math.abs(after.x-before.x+90)<2&&Math.abs(after.y-before.y+35)<2);
+ assert.equal(await nav().getAttribute('aria-current'),'page');
+ await root.locator('[data-action=collapse]').click();await open();let reopened=await panel.boundingBox();assert.ok(Math.abs(after.x-reopened.x)<2&&Math.abs(after.y-reopened.y)<2);
+ await root.locator('[data-action=settings]').click();await root.locator('[name=collapse][value=double]').check();
+ await nav().dblclick();assert.equal(await panel.isVisible(),false);assert.equal(await root.locator('.sidebar-tooltip').isVisible(),false);await open();
+ await root.locator('[data-action=settings]').click();await root.locator('[name=collapse][value=double]').uncheck();await nav().dblclick();assert.equal(await panel.isVisible(),true);
+ console.log('PASS sidebar drag preserves anchor; double-click enabled and disabled on group icons');
+ await page.reload();await page.evaluate(script);await open();assert.equal(await sidebar.evaluate(el=>el.getBoundingClientRect().width),56);assert.equal(await nav().locator('.group-icon').evaluate(el=>getComputedStyle(el).color),'rgb(199, 82, 56)');
+ // A roundtrip through the actual mock WebDAV upload/download path includes color metadata.
+ await root.locator('[data-action=settings]').click();await root.locator('[data-action=settings-tab][data-key=sync]').click();
+ await root.locator('[name=dav-username]').fill('test@example.com');await root.locator('[name=dav-password]').fill('test-app-password');await root.locator('[data-action=save-sync]').click();await root.locator('[data-action=sync]').first().click();
+ await page.waitForFunction(()=>!!localStorage.getItem('mock-cloud'));const packed=await page.evaluate(()=>localStorage.getItem('mock-cloud'));
+ assert.equal(C.project(C.unpack(packed)).group.find(g=>g.key===key).color,'#c75238');
+ assert.equal(C.project(C.unpack(packed)).ungroupedColor,'#a453b2');
+ await page.evaluate(()=>{for(const k of GM_listValues())if(k.startsWith('ph3_op_'))GM_deleteValue(k);});await page.reload();await page.evaluate(script);await open();await root.locator('[data-action=sync]').first().click();
+ await nav().waitFor();assert.equal(await nav().locator('.group-icon').evaluate(el=>getComputedStyle(el).color),'rgb(199, 82, 56)');
+ assert.equal(await root.locator('[data-kind=group][data-key=""] .group-icon').evaluate(el=>getComputedStyle(el).color),'rgb(164, 83, 178)');
+ console.log('PASS reload, backup, mock WebDAV upload and recovery preserve group color');
+ await nav().hover();await panel.screenshot({path:path.join(dir,'artifacts/sidebar-rail.png')});
+ await root.locator('[data-action=groups]').click();await panel.screenshot({path:path.join(dir,'artifacts/group-colors.png')});
+ await root.locator(`[data-action=group-color-reset][data-key="${key}"]`).click();assert.equal(await nav().locator('.group-icon').count(),0);
+ await root.locator('[data-action=group-color-reset][data-key=""]').click();assert.equal(await root.locator('[data-kind=group][data-key=""] .group-icon').count(),0);
+ await root.locator('[data-action=toggle-sidebar]').click();assert.equal(await sidebar.evaluate(el=>el.getBoundingClientRect().width),164);
+ before=await panel.boundingBox();const r=await sidebar.boundingBox();await page.mouse.move(r.x+40,r.y+r.height-30);await page.mouse.down();await page.mouse.move(r.x+70,r.y+r.height-10,{steps:5});await page.mouse.up();after=await panel.boundingBox();assert.ok(Math.abs(after.x-before.x-30)<2);
+ await root.locator('[data-action=settings]').click();await root.locator('[name=collapse][value=double]').check();await sidebar.dblclick({position:{x:30,y:r.height-40}});assert.equal(await panel.isVisible(),false);await open();
+ await root.locator('[data-action=toggle-sidebar]').click();
+ for(const width of [390,280]){await page.setViewportSize({width,height:760});await page.waitForTimeout(200);assert.equal(await sidebar.isVisible(),true);assert.equal(await sidebar.evaluate(el=>el.getBoundingClientRect().width),56);assert.ok(await root.locator('.content').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await panel.screenshot({path:path.join(dir,`artifacts/sidebar-${width}.png`)});}
+ await root.locator('[data-action=toggle-sidebar]').click();assert.equal(await sidebar.isVisible(),true);assert.equal(await sidebar.evaluate(el=>el.getBoundingClientRect().width),190);await root.locator('[data-action=toggle-sidebar]').click();assert.equal(await sidebar.evaluate(el=>el.getBoundingClientRect().width),56);
+ await page.setViewportSize({width:1440,height:1000});await root.locator('[name=theme]').selectOption('dark');await panel.screenshot({path:path.join(dir,'artifacts/sidebar-dark.png')});
+ assert.deepEqual(errors,[]);console.log('PASS expanded sidebar gestures, reset color, narrow layouts and dark mode');await browser.close();
+})().catch(e=>{console.error(e);process.exit(1);});

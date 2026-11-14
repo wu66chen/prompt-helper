@@ -1,0 +1,6 @@
+node_modules/
+artifacts/
+*.backup.js
+提示词备份*
+.env
+.env.*

@@ -1,0 +1,19 @@
+{
+  "name": "prompt-helper-local",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node --test tests/core.test.cjs tests/webdav.test.cjs",
+    "test:ui": "node tests/browser.cjs",
+    "test:window": "node tests/window.cjs",
+    "test:controls": "node tests/window-controls.cjs",
+    "test:sidebar": "node tests/sidebar.cjs",
+    "test:sync": "node tests/sync-compat.cjs",
+    "test:settings": "node tests/global-settings.cjs",
+    "test:motion": "node tests/motion.cjs",
+    "test:tooltip": "node tests/tooltip.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.0"
+  }
+}
