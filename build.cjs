@@ -5,7 +5,7 @@ const matches = JSON.parse(fs.readFileSync(path.join(dir,'userscript-matches.jso
 const header = `// ==UserScript==
 // @name         提示词助手
 // @namespace    http://tampermonkey.net/
-// @version      3.8.0
+// @version      3.8.2
 // @description  macOS 风格提示词资料库：分组、全文搜索、变量填写、草稿与坚果云 WebDAV 同步。
 // @author       Wesley Liu
 ${matches}
@@ -27,7 +27,9 @@ ${matches}
 const core = fs.readFileSync(path.join(dir,'src/core.cjs'),'utf8').replace(/module\.exports = Core;\s*$/, '');
 const css = fs.readFileSync(path.join(dir,'src/style.css'),'utf8');
 const app = fs.readFileSync(path.join(dir,'src/app.js'),'utf8');
-const launcher = fs.readFileSync(path.join(dir,'src/launcher.svg'),'utf8');
+// Embed locally so the launcher works offline and adds no external request.
+const launcherPng = fs.readFileSync(path.join(dir,'src/launcher.png')).toString('base64');
+const launcher = '<img class="launcher-icon" alt="" aria-hidden="true" draggable="false" width="56" height="56" src="data:image/png;base64,' + launcherPng + '">';
 const output = header + '\n(function () {\n\'use strict\';\n' + core + '\nconst STYLE = ' + JSON.stringify(css) + ';\nconst LAUNCHER = ' + JSON.stringify(launcher) + ';\n' + app + '\n})();\n';
 fs.writeFileSync(path.join(dir,'prompt-helper.user.js'),output);
 

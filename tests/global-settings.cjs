@@ -42,7 +42,7 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  await root(a).locator('[data-action=collapse]').click();await root(b).locator('[data-action=collapse]').click();
  async function drag(p,locator,dx,dy){const r=await locator.boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();await p.mouse.move(r.x+r.width/2+dx,r.y+r.height/2+dy,{steps:8});await p.mouse.up();}
  await drag(a,ball(a),-150,-120);await b.waitForTimeout(100);
- const expected=C.layoutAnchor(store.ph3_layout_global,900,760),actual=await ball(b).boundingBox();assert.ok(Math.abs(expected.x-actual.x)<1&&Math.abs(expected.y-actual.y)<1);
+ const expected=C.layoutAnchor(store.ph3_layout_global,900,760,store.ph3_settings_global.launcherSize),actual=await ball(b).boundingBox();assert.ok(Math.abs(expected.x-actual.x)<1&&Math.abs(expected.y-actual.y)<1);
  await open(b);const r=await panel(b).boundingBox();assert.ok(r.x>=0&&r.y>=0&&r.x+r.width<=900&&r.y+r.height<=760);
  const saved=JSON.stringify(store.ph3_layout_global);await b.setViewportSize({width:390,height:600});await b.waitForTimeout(150);assert.equal(JSON.stringify(store.ph3_layout_global),saved);
  const narrow=await panel(b).boundingBox();assert.ok(narrow.x+narrow.width<=390&&narrow.y+narrow.height<=600);
@@ -55,12 +55,18 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  const independent=await create('alpha.test');const own=store['ph3_layout_alpha.test'].anchor,restored=await ball(independent).boundingBox();assert.ok(Math.abs(own.x-restored.x)<1&&Math.abs(own.y-restored.y)<1);await independent.close();pages.delete(independent);
  await root(a).locator('[name=syncPosition]').check();await b.waitForFunction(()=>GM_getValue('ph3_settings_global').syncPosition===true);await b.waitForTimeout(80);
  const c=await create('gamma.test',1100,800);assert.equal(await root(c).getAttribute('data-theme'),'light');await open(c);assert.equal(await panel(c).evaluate(el=>el.classList.contains('compact')),true);
- const expectedC=C.layoutAnchor(store.ph3_layout_global,1100,800);
+ const expectedC=C.layoutAnchor(store.ph3_layout_global,1100,800,store.ph3_settings_global.launcherSize);
  assert.ok(Math.abs(await ball(c).evaluate(el=>parseFloat(el.style.left))-expectedC.x)<1);
  console.log('PASS position opt-out, opt-in and newly opened site using latest settings');
  await settings(c);await panel(c).screenshot({path:path.join(dir,'artifacts/global-settings.png')});
  // Remote preferences must not replace another site's in-progress sync form.
  await root(b).locator('[data-action=settings]').click();await root(b).locator('[data-action=settings-tab][data-key=sync]').click();await root(b).locator('[name=dav-username]').fill('unsaved@example.invalid');
  await root(a).locator('[name=opaque]').check();await b.waitForTimeout(100);assert.equal(await root(b).locator('[name=dav-username]').inputValue(),'unsaved@example.invalid');
+ await root(b).locator('[data-action=collapse]').click();
+ await root(a).locator('[name=launcherSize]').fill('128');await root(a).locator('[name=launcherSize]').dispatchEvent('change');
+ await b.waitForFunction(()=>document.querySelector('#db-prompt-helper-root').shadowRoot.querySelector('.ball').getBoundingClientRect().width===128);
+ assert.equal(await root(c).locator('[name=launcherSize]').inputValue(),'128');
+ const sized=await create('delta.test');assert.equal((await ball(sized).boundingBox()).width,128);await sized.close();pages.delete(sized);
+ console.log('PASS launcher size live sync across unrelated origins and new sites');
  assert.deepEqual(errors,[]);console.log('PASS remote settings preserve unfinished form input');await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -10,11 +10,11 @@ function stableId(text) {
 let device = GM_getValue(PREFIX+'device', '');
 if (!device) { device = id(); GM_setValue(PREFIX+'device', device); }
 const SETTINGS_KEY=PREFIX+'settings_global',LAYOUT_KEY=PREFIX+'layout_global';
-const defaults = {theme:'system',compact:false,opaque:false,sidebarCollapsed:false,syncPosition:true,motion:true};
+const defaults = {theme:'system',compact:false,opaque:false,sidebarCollapsed:false,syncPosition:true,motion:true,launcherSize:72};
 const previousTheme=GM_getValue('db_theme_mode_'+site,'system');
 const globalSettings=GM_getValue(SETTINGS_KEY,null);
 const storedSettings=globalSettings||GM_getValue(PREFIX+'settings_'+site,{});
-let settings = {...defaults,theme:['light','dark'].includes(previousTheme)?previousTheme:'system',...storedSettings,collapseModes:Core.collapseModes(storedSettings)};
+let settings = {...defaults,theme:['light','dark'].includes(previousTheme)?previousTheme:'system',...storedSettings,launcherSize:Core.launcherSize(storedSettings.launcherSize),collapseModes:Core.collapseModes(storedSettings)};
 if(!globalSettings)GM_setValue(SETTINGS_KEY,settings);
 let ops = [], state, view = 'library', filter = {kind:'all',key:''}, query = '', form = null, settingsTab = 'appearance';
 let expanded = new Set(), toastTimer, draftTimer, searchTimer, autoTimer, syncBusy = false, syncQueued = false;
@@ -22,7 +22,7 @@ let errorStatus = '', session = id(), dialogReturnFocus = null, lastFocused = nu
 const sharedLayout=settings.syncPosition?GM_getValue(LAYOUT_KEY,null):null;
 const storedLayout=sharedLayout||GM_getValue(PREFIX+'layout_'+site,null),legacyGeometry=GM_getValue(PREFIX+'geometry_'+site,null);
 const initialViewport=viewport();
-let geometry=null,restoreGeometry=null,anchor=sharedLayout?Core.layoutAnchor(sharedLayout,initialViewport.w,initialViewport.h):storedLayout?.anchor||GM_getValue(PREFIX+'ball_'+site,null);
+let geometry=null,restoreGeometry=null,anchor=sharedLayout?Core.layoutAnchor(sharedLayout,initialViewport.w,initialViewport.h,settings.launcherSize):storedLayout?.anchor||GM_getValue(PREFIX+'ball_'+site,null);
 let panelSize=storedLayout?.size||{w:legacyGeometry?.w||680,h:legacyGeometry?.h||650},direction=storedLayout?.direction||'up-left',selectedTag='';
 const gearPoints=Array.from({length:8},(_,tooth)=>[[-8,10],[8,10],[14,7.7],[31,7.7]].map(([angle,radius])=>{
     const radians=(tooth*45+angle-90)*Math.PI/180;return [(12+radius*Math.cos(radians)).toFixed(2),(12+radius*Math.sin(radians)).toFixed(2)].join(' ');
@@ -153,6 +153,7 @@ function animateView(){
 function applyTheme() {
     host.dataset.theme=settings.theme==='system'?(themeMedia.matches?'dark':'light'):settings.theme;panel.classList.toggle('compact',settings.compact);panel.classList.toggle('opaque',settings.opaque);
     panel.classList.toggle('sidebar-collapsed',settings.sidebarCollapsed);
+    updateLauncherPreview();
     $('[data-action=collapse]').disabled=!settings.collapseModes.button;
     $('[data-action=collapse]').title=settings.collapseModes.button?'收起为悬浮球':'点击 × 收起已关闭，可在设置中启用';
     $$('[name=collapse]').forEach(input=>input.checked=settings.collapseModes[input.value]);
@@ -165,20 +166,26 @@ function applyTheme() {
 }
 themeMedia.addEventListener('change',applyTheme);motionMedia.addEventListener('change',applyTheme);applyTheme();
 function viewport() { return {w:window.visualViewport?.width||innerWidth,h:window.visualViewport?.height||innerHeight,x:window.visualViewport?.offsetLeft||0,y:window.visualViewport?.offsetTop||0}; }
-function layoutValue(){const v=viewport();return Core.layoutSnapshot(anchor,panelSize,direction,v.w,v.h);}
+function layoutValue(){const v=viewport();return Core.layoutSnapshot(anchor,panelSize,direction,v.w,v.h,settings.launcherSize);}
 function persistLayout() {
     const value=layoutValue();GM_setValue(PREFIX+'layout_'+site,value);
     if(settings.syncPosition)GM_setValue(LAYOUT_KEY,value);
 }
 function applySharedLayout(value=GM_getValue(LAYOUT_KEY,null)) {
     if(!value||!settings.syncPosition||activeDrag)return;
-    const v=viewport();anchor=Core.layoutAnchor(value,v.w,v.h);panelSize=value.size||{w:680,h:650};direction=value.direction||'up-left';restoreGeometry=null;
+    const v=viewport();anchor=Core.layoutAnchor(value,v.w,v.h,settings.launcherSize);panelSize=value.size||{w:680,h:650};direction=value.direction||'up-left';restoreGeometry=null;
     positionFromAnchor();
 }
 function receiveSettings(value) {
     const wasShared=settings.syncPosition;
+    const oldSize=settings.launcherSize,oldLayout=layoutValue();
     const sidebarChanged=settings.sidebarCollapsed!==value.sidebarCollapsed,previousX=content.getBoundingClientRect().x;
-    settings={...defaults,...value,collapseModes:Core.collapseModes(value)};
+    settings={...defaults,...value,launcherSize:Core.launcherSize(value.launcherSize),collapseModes:Core.collapseModes(value)};
+    if(oldSize!==settings.launcherSize){
+        const v=viewport();
+        if(isOpen)placeBall(Core.launcherFromRect(geometry,direction,v.w,v.h,settings.launcherSize));
+        else {anchor=Core.layoutAnchor(oldLayout,v.w,v.h,settings.launcherSize);positionFromAnchor();}
+    }
     if(wasShared&&!settings.syncPosition)GM_setValue(PREFIX+'layout_'+site,layoutValue());
     if(!wasShared&&settings.syncPosition)applySharedLayout();
     applyTheme();renderSidebar();
@@ -188,8 +195,10 @@ function saveSettings(patch) {
     const latest=GM_getValue(SETTINGS_KEY,settings);
     const next={...defaults,...latest,...patch,collapseModes:patch.collapseModes?{...Core.collapseModes(latest),...patch.collapseModes}:Core.collapseModes(latest)};
     delete next.collapse;
+    next.launcherSize=Core.launcherSize(next.launcherSize);
     if(!settings.syncPosition&&next.syncPosition)GM_setValue(LAYOUT_KEY,layoutValue());
     GM_setValue(SETTINGS_KEY,next);receiveSettings(next);
+    if(Object.hasOwn(patch,'launcherSize'))persistLayout();
 }
 function paintPanel() {
     const v=viewport();
@@ -204,19 +213,19 @@ function paintPanel() {
     $$('.resize-handle').forEach(handle=>{const [x,y,w,h]=zones[handle.dataset.edge];Object.assign(handle.style,{left:x+'px',top:y+'px',width:Math.max(1,w)+'px',height:Math.max(1,h)+'px'});handle.hidden=!isOpen;});
 }
 function placeBall(position=anchor,save=false) {
-    const v=viewport();anchor=Core.clampLauncher(position||{x:v.w-76,y:v.h-100},v.w,v.h);
+    const v=viewport();anchor=Core.clampLauncher(position||{x:v.w-settings.launcherSize-20,y:v.h-settings.launcherSize-44},v.w,v.h,settings.launcherSize);
     Object.assign(ball.style,{left:anchor.x+v.x+'px',top:anchor.y+v.y+'px',width:anchor.s+'px',height:anchor.s+'px'});
     if(save)persistLayout();
 }
 function positionFromAnchor(save=false) {
     const v=viewport();placeBall();
-    const result=Core.anchoredRect(anchor,panelSize,v.w,v.h,direction);
+    const result=Core.anchoredRect(anchor,panelSize,v.w,v.h,direction,settings.launcherSize);
     geometry=result.rect;direction=result.direction;anchor=result.ball;paintPanel();
     if(save)persistLayout();
 }
 function placePanel(save=false) {
     const v=viewport();geometry=Core.clampRect(geometry,v.w,v.h,{w:Math.min(340,geometry.w),h:Math.min(320,geometry.h)});
-    paintPanel();placeBall(Core.launcherFromRect(geometry,direction,v.w,v.h));
+    paintPanel();placeBall(Core.launcherFromRect(geometry,direction,v.w,v.h,settings.launcherSize));
     if(save){panelSize={w:geometry.w,h:geometry.h};persistLayout();}
 }
 placeBall();positionFromAnchor();
@@ -332,12 +341,22 @@ function render() {
     if(view==='groups') renderGroups();
     animateView();
 }
+function updateLauncherPreview(value=settings.launcherSize) {
+    const size=Core.launcherSize(value),slider=$('[name=launcherSize]'),preview=$('.launcher-preview');
+    if(slider){slider.value=size;slider.setAttribute('aria-valuetext',size+' 像素');}
+    if($('[data-launcher-size]'))$('[data-launcher-size]').textContent=size+' px';
+    if(preview)preview.style.setProperty('--preview-size',size+'px');
+}
+function launcherSettings() {
+    return `<section class="section launcher-settings"><div class="setting-row"><label for="launcher-size">悬浮图标大小</label><output data-launcher-size for="launcher-size">${settings.launcherSize} px</output></div><div class="launcher-preview" style="--preview-size:${settings.launcherSize}px" aria-hidden="true">${LAUNCHER}</div><input id="launcher-size" name="launcherSize" class="launcher-range" type="range" min="48" max="128" step="4" value="${settings.launcherSize}" aria-valuetext="${settings.launcherSize} 像素" aria-describedby="launcher-size-hint"><div class="launcher-size-footer"><span>48 px</span>${btn('reset-launcher-size','恢复默认 72 px')}<span>128 px</span></div><p id="launcher-size-hint" class="hint">拖动滑块预览，松开后自动保存；也可用方向键微调。图标与点击区域一起缩放，所有网站共用。</p></section>`;
+}
 function renderSettings() {
     const config=GM_getValue(PREFIX+'sync',{}), meta=GM_getValue(PREFIX+'sync_meta',{});
     let body='';
     if(settingsTab==='appearance') body=`<section class="section"><h3>外观</h3><p class="hint">本浏览器内所有网站共用这些偏好，修改后已打开的页面也会更新。</p><label class="setting-row">主题<select class="input" name="theme">${[['system','跟随系统'],['light','浅色'],['dark','深色']].map(([v,l])=>`<option value="${v}" ${settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="compact" ${settings.compact?'checked':''}>紧凑列表，显示更多提示词</label><label class="check"><input type="checkbox" name="opaque" ${settings.opaque?'checked':''}>减少透明效果（使用实色背景）</label><label class="check"><input type="checkbox" name="motion" ${settings.motion!==false?'checked':''}>启用微动效</label><p class="hint">跟随系统的减少动态效果偏好；关闭后即时切换，所有网站共用。</p></section><section class="section"><h3>收起为悬浮球</h3><div class="collapse-options">${[['button','点击 × 按钮'],['double','双击顶栏或侧栏'],['outside','点击窗口外区域']].map(([v,l])=>`<label><input type="checkbox" name="collapse" value="${v}" ${settings.collapseModes[v]?'checked':''}>${l}</label>`).join('')}</div><p class="hint collapse-hint">${Object.values(settings.collapseModes).some(Boolean)?'可同时勾选多种方式，所有网站共用。收起保留草稿；拖动、缩放和确认弹窗不会触发收起。':'未启用任何收起方式，窗口会保持展开。可在这里重新勾选。'}</p></section><section class="section"><h3>窗口</h3><label class="check"><input type="checkbox" name="syncPosition" ${settings.syncPosition?'checked':''}>所有网站共用悬浮图标和窗口位置、大小</label><p class="hint">开启后按窗口比例保持位置，自动适应不同窗口大小；关闭后各网站分别记忆。仅在本浏览器生效，不上传到坚果云。</p><p class="hint">拖动顶栏或侧栏移动窗口，四条边和四个角都能调整大小。绿色按钮切换最大化；窗口始终保持在可视区域内。</p>${btn('reset-window','恢复窗口和悬浮球位置')}</section><section class="section"><h3>键盘操作</h3><p class="hint">面板内 Ctrl / ⌘ + K 搜索，Ctrl / ⌘ + Enter 保存或复制。Tab 切换控件。Esc 关闭确认弹窗或返回列表。</p></section>`;
     if(settingsTab==='sync') body=`<section class="section"><h3>坚果云 WebDAV</h3><p class="hint">连接后同步提示词、收藏、标签和分组。主题、窗口位置、草稿和凭据仅保存在本机。</p><label class="field"><span>服务地址</span><input class="input" value="https://dav.jianguoyun.com/dav/" readonly></label>${field('dav-username','坚果云账号',config.username||'','通常是注册邮箱')}${field('dav-password','应用密码',config.password||'','使用第三方应用密码，不是登录密码','password')}${field('dav-folder','同步文件夹',config.folder||'PromptHelper','PromptHelper')}<p class="hint">不同设备填写相同的账号和文件夹。文件夹自动创建；首版仅支持坚果云。<a href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noopener noreferrer">如何获取应用密码</a></p><label class="check"><input type="checkbox" name="dav-auto" ${config.auto?'checked':''}>启用自动同步</label><p class="hint">修改后延迟同步，至少间隔 60 秒；打开匹配网站时每 10 分钟检查云端。浏览器关闭后不会同步。</p><div class="inline" style="flex-wrap:wrap">${btn('save-sync','保存配置')}${btn('test-sync','测试连接','cloud')}${btn('sync','立即同步','sync')}${btn('disconnect','断开连接')}</div></section><section class="section"><h3>同步状态</h3><p class="hint sync-detail">${esc(syncBusy?'正在同步…':errorStatus||meta.error||'就绪')}${meta.lastSuccess?'<br>上次成功：'+new Date(meta.lastSuccess).toLocaleString('zh-CN'):''}</p><p class="hint">离线时正常使用。两端同时修改会保留冲突版本；在列表中选择需要保留的版本。HTTPS 保护传输，云端 JSON 为明文，请勿存放密码或密钥。</p></section>`;
-    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏和修改历史，不包含应用密码或草稿。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.5.1 · 定制版<br>已禁用原作者地址的自动更新，避免覆盖定制功能。安装新版时保留脚本名称与命名空间，先导出备份。</p></section>`;
+    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏和修改历史，不包含应用密码或草稿。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.8.2 · 定制版<br>已禁用原作者地址的自动更新，避免覆盖定制功能。安装新版时保留脚本名称与命名空间，先导出备份。</p></section>`;
+    if(settingsTab==='appearance')body=launcherSettings()+body;
     content.innerHTML=viewHeader('设置')+`<div class="settings-tabs">${[['appearance','外观与窗口'],['sync','云同步'],['backup','备份']].map(([v,l])=>`<button class="btn ${settingsTab===v?'active':''}" data-action="settings-tab" data-key="${v}">${l}</button>`).join('')}</div><div class="scroll form-scroll">${body}</div>`;
     if(syncBusy) $$('[data-action=sync],[data-action=test-sync]').forEach(b=>b.disabled=true);
 }
@@ -525,6 +544,7 @@ shadow.addEventListener('click',async event=>{
             else {restoreGeometry={rect:{...geometry},direction};const v=viewport();geometry={x:12,y:12,w:v.w-24,h:v.h-24};}
             placePanel(true);return;
         }
+        if(action==='reset-launcher-size'){saveSettings({launcherSize:defaults.launcherSize});return;}
         if(action==='reset-window'){anchor=null;panelSize={w:680,h:650};direction='up-left';restoreGeometry=null;positionFromAnchor(true);toast('窗口位置已恢复');return;}
         if(action==='nav'){panel.classList.toggle('nav-open');return;}
         if(action==='toggle-sidebar'){saveSettings({sidebarCollapsed:!settings.sidebarCollapsed});panel.classList.toggle('nav-open',!settings.sidebarCollapsed);$('[data-action=toggle-sidebar]').focus();return;}
@@ -597,6 +617,7 @@ shadow.addEventListener('click',async event=>{
 shadow.addEventListener('input',event=>{
     const el=event.target;
     try {
+        if(el.name==='launcherSize'){updateLauncherPreview(el.value);return;}
         if(el.classList.contains('search-input')){query=el.value;clearTimeout(searchTimer);searchTimer=setTimeout(renderList,100);return;}
         if(view==='editor'&&form){
             if(['title','content','tags','output'].includes(el.name))form[el.name]=el.value;
@@ -611,6 +632,7 @@ shadow.addEventListener('input',event=>{
 shadow.addEventListener('change',event=>{
     const el=event.target;
     try {
+        if(el.name==='launcherSize'){saveSettings({launcherSize:el.value});return;}
         if(el.name==='collapse'){
             saveSettings({collapseModes:{[el.value]:el.checked}});return;
         }

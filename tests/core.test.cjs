@@ -4,6 +4,24 @@ const C=require('../src/core.cjs');
 const value=content=>({title:'模板',content,tags:['写作'],favorite:false});
 const op=(id,parents=[],content=id,at=1)=>({id,parents,entity:'prompt',key:'p',device:'test',at,value:content===null?null:value(content)});
 
+test('configurable launcher size preserves anchor roundtrips and viewport boundaries',()=>{
+    for(const size of [48,72,128])for(const [w,h] of [[1440,1000],[390,640],[80,60]])for(const direction of ['up-left','up-right','down-left','down-right']){
+        const opened=C.anchoredRect({x:w-20,y:h-30},{w:680,h:650},w,h,direction,size);
+        const {ball,rect}=opened;
+        assert.ok(ball.x>=0&&ball.y>=0&&ball.x+ball.s<=w&&ball.y+ball.s<=h);
+        assert.ok(rect.x>=0&&rect.y>=0&&rect.x+rect.w<=w&&rect.y+rect.h<=h);
+        const restored=C.launcherFromRect(rect,opened.direction,w,h,size);
+        for(const k of ['x','y','s'])assert.ok(Math.abs(restored[k]-ball[k])<.001);
+        const layout=C.layoutSnapshot(ball,{w:680,h:650},opened.direction,w,h,size);
+        const same=C.layoutAnchor(layout,w,h,size);
+        assert.ok(Math.abs(same.x-ball.x)<.001&&Math.abs(same.y-ball.y)<.001);
+    }
+});
+test('invalid launcher preferences safely fall back or clamp',()=>{
+    for(const bad of [null,undefined,NaN,Infinity,'','bad',{},true])assert.equal(C.launcherSize(bad),72);
+    assert.equal(C.launcherSize(-100),48);assert.equal(C.launcherSize(900),128);assert.equal(C.launcherSize('96'),96);
+});
+
 test('shared layout preserves relative anchor across viewports without shrinking stored size',()=>{
     const value=C.layoutSnapshot({x:1300,y:900},{w:680,h:650},'up-left',1440,1000);
     const same=C.layoutAnchor(value,1440,1000);assert.ok(Math.abs(same.x-1300)<1&&Math.abs(same.y-900)<1);

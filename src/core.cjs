@@ -122,6 +122,10 @@ const Core = (() => {
         return {w,h,x:Math.min(Math.max(gap,Number(rect.x)||gap),Math.max(gap,width-w-gap)),y:Math.min(Math.max(gap,Number(rect.y)||gap),Math.max(gap,height-h-gap))};
     }
     const LAUNCHER_SIZE=56;
+    function launcherSize(value) {
+        const n=typeof value==='number'||typeof value==='string'&&value.trim()!==''?Number(value):NaN;
+        return Number.isFinite(n)?Math.min(128,Math.max(48,Math.round(n/4)*4)):72;
+    }
     function collapseModes(settings={}) {
         if(settings.collapseModes&&typeof settings.collapseModes==='object')return {button:settings.collapseModes.button===true,outside:settings.collapseModes.outside===true,double:settings.collapseModes.double===true};
         return {button:true,outside:settings.collapse==='outside',double:settings.collapse==='double'};
@@ -136,22 +140,22 @@ const Core = (() => {
         if(edge.includes('s'))bottom=clamp(bottom+dy,top+minH,height-gap);
         return {x:left,y:top,w:right-left,h:bottom-top};
     }
-    function clampLauncher(position,width,height) {
-        const gap=Math.min(12,width/20,height/20),s=Math.max(1,Math.min(LAUNCHER_SIZE,width-2*gap,height-2*gap));
+    function clampLauncher(position,width,height,requestedSize=LAUNCHER_SIZE) {
+        const gap=Math.min(12,width/20,height/20),s=Math.max(1,Math.min(launcherSize(requestedSize),width-2*gap,height-2*gap));
         return {x:Math.max(gap,Math.min(Number(position?.x)||gap,width-gap-s)),y:Math.max(gap,Math.min(Number(position?.y)||gap,height-gap-s)),s};
     }
-    function layoutSnapshot(anchor,size,direction,width,height) {
-        const ball=clampLauncher(anchor,width,height),gap=Math.min(12,width/20,height/20);
+    function layoutSnapshot(anchor,size,direction,width,height,requestedSize=LAUNCHER_SIZE) {
+        const ball=clampLauncher(anchor,width,height,requestedSize),gap=Math.min(12,width/20,height/20);
         return {anchor:{x:ball.x,y:ball.y},size:{...size},direction,relative:{x:(ball.x-gap)/Math.max(1,width-2*gap-ball.s),y:(ball.y-gap)/Math.max(1,height-2*gap-ball.s)}};
     }
-    function layoutAnchor(layout,width,height) {
-        if(!layout?.relative)return clampLauncher(layout?.anchor,width,height);
-        const gap=Math.min(12,width/20,height/20),s=clampLauncher(null,width,height).s;
+    function layoutAnchor(layout,width,height,requestedSize=LAUNCHER_SIZE) {
+        if(!layout?.relative)return clampLauncher(layout?.anchor,width,height,requestedSize);
+        const gap=Math.min(12,width/20,height/20),s=clampLauncher(null,width,height,requestedSize).s;
         const unit=v=>Math.max(0,Math.min(1,Number(v)||0));
-        return clampLauncher({x:gap+unit(layout.relative.x)*Math.max(0,width-2*gap-s),y:gap+unit(layout.relative.y)*Math.max(0,height-2*gap-s)},width,height);
+        return clampLauncher({x:gap+unit(layout.relative.x)*Math.max(0,width-2*gap-s),y:gap+unit(layout.relative.y)*Math.max(0,height-2*gap-s)},width,height,requestedSize);
     }
-    function anchoredRect(position,size,width,height,preferred='up-left') {
-        const ball=clampLauncher(position,width,height),gap=Math.min(12,width/20,height/20);
+    function anchoredRect(position,size,width,height,preferred='up-left',requestedSize=LAUNCHER_SIZE) {
+        const ball=clampLauncher(position,width,height,requestedSize),gap=Math.min(12,width/20,height/20);
         const desired=clampRect({...size,x:gap,y:gap},width,height,{w:Math.min(340,size.w||680),h:Math.min(320,size.h||650)});
         const space={left:ball.x+ball.s-gap,right:width-gap-ball.x,up:ball.y+ball.s-gap,down:height-gap-ball.y};
         const [py,px]=['up-left','up-right','down-left','down-right'].includes(preferred)?preferred.split('-'):['up','left'];
@@ -160,9 +164,9 @@ const Core = (() => {
         const w=Math.min(desired.w,space[xDir]),h=Math.min(desired.h,space[yDir]);
         return {ball,direction:yDir+'-'+xDir,rect:{x:xDir==='left'?ball.x+ball.s-w:ball.x,y:yDir==='up'?ball.y+ball.s-h:ball.y,w,h}};
     }
-    function launcherFromRect(rect,direction,width,height) {
-        const s=clampLauncher({x:0,y:0},width,height).s;
-        return clampLauncher({x:direction.endsWith('left')?rect.x+rect.w-s:rect.x,y:direction.startsWith('up')?rect.y+rect.h-s:rect.y},width,height);
+    function launcherFromRect(rect,direction,width,height,requestedSize=LAUNCHER_SIZE) {
+        const s=clampLauncher({x:0,y:0},width,height,requestedSize).s;
+        return clampLauncher({x:direction.endsWith('left')?rect.x+rect.w-s:rect.x,y:direction.startsWith('up')?rect.y+rect.h-s:rect.y},width,height,requestedSize);
     }
     function etag(headers,allowBare=false) {
         const lines=String(headers||'').split(/\r?\n/).filter(line=>/^etag:/i.test(line));
@@ -212,6 +216,6 @@ const Core = (() => {
         const messages = {401:'账号或应用密码不正确，请检查坚果云授权',403:'无权访问或请求过于频繁，请检查授权并稍后重试',404:'同步目录不存在，请检查文件夹名称',409:'同步目录尚未创建或路径冲突',429:'坚果云请求过于频繁，请稍后重试',507:'坚果云空间不足，请整理网盘后重试'};
         const error = Error(messages[status] || `同步服务返回 ${status}，请稍后重试`); error.status = status; return error;
     }
-    return {FORMAT,VERSION,MAX_BYTES,MAX_OPS,LAUNCHER_SIZE,esc,tags,validate,merge,project,pack,unpack,parseLegacy,variables,fill,filter,clampRect,collapseModes,resizeRect,clampLauncher,layoutSnapshot,layoutAnchor,anchoredRect,launcherFromRect,etag,syncCAS,httpError};
+    return {FORMAT,VERSION,MAX_BYTES,MAX_OPS,LAUNCHER_SIZE,launcherSize,esc,tags,validate,merge,project,pack,unpack,parseLegacy,variables,fill,filter,clampRect,collapseModes,resizeRect,clampLauncher,layoutSnapshot,layoutAnchor,anchoredRect,launcherFromRect,etag,syncCAS,httpError};
 })();
 module.exports = Core;
