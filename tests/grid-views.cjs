@@ -15,7 +15,7 @@ const dir=path.resolve(__dirname,'..');
    const rows=await root.locator('.prompt').evaluateAll(cards=>cards.map(c=>({height:c.offsetHeight,overflow:c.scrollWidth>c.clientWidth,actions:[...c.querySelectorAll('.actions>button')].map(b=>({top:b.getBoundingClientRect().top,height:b.getBoundingClientRect().height,width:b.getBoundingClientRect().width}))})));
    assert.ok(rows.every(r=>!r.overflow),mode+' cards should not overflow');
    for(const row of rows){assert.equal(row.actions.length,4);assert.ok(Math.max(...row.actions.map(a=>a.top))-Math.min(...row.actions.map(a=>a.top))<1,mode+' actions must stay in one row');assert.ok(row.actions.every(a=>Math.abs(a.height-32)<1&&a.width>0),JSON.stringify(row.actions));}
-   if(mode==='grid'||mode==='titles')assert.ok(Math.max(...rows.map(r=>r.height))-Math.min(...rows.map(r=>r.height))<=1,'all grid cards have equal height');
+   if(mode==='grid')assert.ok(Math.max(...rows.map(r=>r.height))-Math.min(...rows.map(r=>r.height))<=1,'all grid cards have equal height');
    assert.deepEqual(await root.locator('.prompt h3').allTextContents(),titles);
    assert.equal(await root.locator('.prompt-list').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   }
@@ -27,7 +27,8 @@ const dir=path.resolve(__dirname,'..');
   for(const mode of ['grid','titles','masonry','list']){
    await setLayout(mode);if(mode==='titles'){assert.equal(await root.locator('.prompt-content,.prompt .tags').count(),0);await act('preview').first().click();await act('dialog-cancel').click();}
    await check(mode);await root.locator('.panel').screenshot({path:path.join(dir,'artifacts/grid-views/'+mode+'-default.png')});
-   await act('maximize').click();await check(mode);await act('maximize').click();
+   const beforeMax=await root.locator('.panel').boundingBox();await act('maximize').click();await check(mode);await act('maximize').click();
+   const afterMax=await root.locator('.panel').boundingBox();assert.ok(Math.abs(beforeMax.width-afterMax.width)<1&&Math.abs(beforeMax.height-afterMax.height)<1,'maximizing and restoring preserves size');
    for(const width of [390,280]){await page.setViewportSize({width,height:760});await check(mode);}
    await page.setViewportSize({width:1440,height:1000});
   }

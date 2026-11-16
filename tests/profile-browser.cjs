@@ -1,0 +1,42 @@
+const {chromium}=require('playwright'),{setup}=require('./browser.cjs'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),C=require('../src/core.cjs');
+const dir=path.resolve(__dirname,'..');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const contexts=await Promise.all([1,2,3].map(()=>browser.newContext({viewport:{width:1440,height:1000}}))),[a,b,c]=await Promise.all(contexts.map(x=>x.newPage())),errors=[];
+ for(const p of [a,b,c]){p.on('pageerror',e=>errors.push(e.message));await setup(p);}
+ const root=p=>p.locator('#db-prompt-helper-root'),act=(p,a)=>root(p).locator(`[data-action=${a}]`),open=async p=>{await p.bringToFront();await act(p,'open').click();};
+ const sync=async p=>{await p.bringToFront();await p.evaluate(()=>GM_setValue('ph3_sync',{username:'fixture',password:'fixture-secret',folder:'PromptHelper',auto:false}));await act(p,'sync').click();await p.waitForFunction(()=>document.querySelector('#db-prompt-helper-root').dataset.syncing==='false');assert.equal(await p.evaluate(()=>GM_getValue('ph3_sync_meta').error),'');};
+ const transfer=async(from,to)=>{const cloud=await from.evaluate(()=>localStorage.getItem('mock-cloud'));await to.evaluate(cloud=>{localStorage.setItem('mock-cloud',cloud);localStorage.setItem('mock-etag','1');},cloud);};
+ await open(a);await root(a).locator('.prompt [data-action=edit]').first().click();await act(a,'back').click();await act(a,'drafts').click();assert.equal(await root(a).locator('.draft-row').count(),0);
+ await act(a,'back').click();await root(a).locator('.prompt [data-action=edit]').first().click();await root(a).locator('[name=title]').fill('待保存草稿');await a.waitForTimeout(500);assert.equal(await a.evaluate(()=>GM_listValues().filter(k=>k.startsWith('ph3_draft_')).length),0);
+ await act(a,'back').click();assert.equal(await root(a).locator('.dialog h2').textContent(),'如果返回，你编辑的内容将丢失。');assert.equal(await act(a,'dialog-cancel').textContent(),'放弃');assert.ok((await act(a,'dialog-cancel').getAttribute('class')).includes('danger'));
+ await a.keyboard.press('Escape');assert.equal(await root(a).locator('[name=title]').inputValue(),'待保存草稿');await act(a,'settings').click();await act(a,'dialog-confirm').click();
+ await root(a).locator('[name=theme]').selectOption('dark');await root(a).locator('[name=libraryLayout]').selectOption('titles');
+ await root(a).locator('[name=compact]').check();await root(a).locator('[name=opaque]').check();await root(a).locator('[name=motion]').uncheck();await root(a).locator('[name=collapse][value=double]').check();await root(a).locator('[name=launcherSize]').fill('96');await root(a).locator('[name=launcherSize]').dispatchEvent('change');
+ const png=await a.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#2878d0';x.fillRect(48,48,160,160);return c.toDataURL('image/png').split(',')[1];});
+ await root(a).locator('.launcher-file').setInputFiles({name:'custom.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await root(a).locator('.launcher-preview .custom-launcher').waitFor();
+ const custom=await root(a).locator('.ball img').getAttribute('src');assert.ok(custom.startsWith('data:image/png;base64,'));
+ fs.mkdirSync(path.join(dir,'artifacts/profile'),{recursive:true});await root(a).locator('.panel').screenshot({path:path.join(dir,'artifacts/profile/custom-icon-settings.png')});
+ await root(a).locator('.launcher-file').setInputFiles({name:'bad.png',mimeType:'image/png',buffer:Buffer.from('not png')});await a.waitForTimeout(50);assert.equal(await root(a).locator('.ball img').getAttribute('src'),custom);
+ await act(a,'back').click();assert.equal(await root(a).locator('.prompt-content').count(),0);await root(a).locator('.prompt [data-action=copy]').first().click();assert.ok((await a.evaluate(()=>__clipboard)).length>10);
+ // Toggle remains in the same place and shares the navigation icon axis.
+ const position=async()=>{await a.waitForTimeout(250);return act(a,'toggle-sidebar').boundingBox();};const before=await position();await act(a,'toggle-sidebar').click();const after=await position();assert.ok(Math.abs(before.x-after.x)<1&&Math.abs(before.y-after.y)<1);
+ const axis=await root(a).locator('.sidebar [data-kind=all] svg').boundingBox();assert.ok(Math.abs(axis.x+axis.width/2-(after.x+after.width/2))<1);
+ await sync(a);const cloud=await a.evaluate(()=>localStorage.getItem('mock-cloud'));assert.ok(!cloud.includes('fixture-secret'));assert.ok(C.project(C.unpack(cloud)).draft.length===1);
+ await transfer(a,b);await open(b);await sync(b);assert.equal(await root(b).getAttribute('data-theme'),'dark');assert.equal(await root(b).locator('.titles-only').count(),1);assert.equal(await root(b).locator('.ball img').getAttribute('src'),custom);
+ const restored=await b.evaluate(()=>GM_getValue('ph3_settings_global'));assert.equal(restored.launcherSize,96);assert.equal(restored.compact,true);assert.equal(restored.opaque,true);assert.equal(restored.motion,false);assert.equal(restored.collapseModes.double,true);assert.equal(restored.sidebarCollapsed,true);assert.ok(await b.evaluate(()=>!!GM_getValue('ph3_layout_global')?.relative));
+ await act(b,'drafts').click();await act(b,'restore-draft').click();assert.equal(await root(b).locator('[name=title]').inputValue(),'待保存草稿');await act(b,'back').click();await act(b,'dialog-cancel').click();await act(b,'drafts').click();assert.equal(await root(b).locator('.draft-row').count(),0);
+ await sync(b);await transfer(b,a);await sync(a);await act(a,'drafts').click();assert.equal(await root(a).locator('.draft-row').count(),0);
+ console.log('PASS untouched/dirty/discard/save draft, custom PNG validation, sidebar alignment, simulated WebDAV preference/icon/draft restoration and deletion');
+ await act(a,'back').click();await root(a).locator('.prompt [data-action=use]').first().click();assert.deepEqual(await root(a).locator('.editor-variable').allTextContents(),['原文','读者']);
+ await root(a).locator('[name=variable-0]').fill('高亮替换值');assert.deepEqual(await root(a).locator('.editor-variable').allTextContents(),['高亮替换值','读者']);
+ const output=root(a).locator('[name=output]');await output.focus();await a.keyboard.press('Control+Home');await a.keyboard.type('PREFIX ');assert.ok((await root(a).locator('.editor-variable').allTextContents()).includes('高亮替换值'));
+ await act(a,'copy-output').click();assert.equal(await a.evaluate(()=>__clipboard),await output.inputValue());
+ await output.focus();await a.keyboard.press('Control+A');await a.keyboard.insertText('替换整段正文');assert.equal(await root(a).locator('.editor-variable').count(),0);await a.keyboard.press('Control+Z');assert.ok((await root(a).locator('.editor-variable').allTextContents()).includes('高亮替换值'));
+ fs.mkdirSync(path.join(dir,'artifacts/profile'),{recursive:true});await root(a).locator('.panel').screenshot({path:path.join(dir,'artifacts/profile/variables-dark.png')});
+ await act(a,'settings').click();await root(a).locator('[data-action=settings-tab][data-key=backup]').click();assert.ok(!(await root(a).locator('.content').textContent()).includes('定制版'));
+ const download=a.waitForEvent('download');await act(a,'export-json').click();const file=path.join(dir,'artifacts/profile/backup.json');await (await download).saveAs(file);
+ await open(c);await root(c).locator('.import-file').setInputFiles(file);await act(c,'dialog-confirm').click();assert.equal(await root(c).getAttribute('data-theme'),'dark');assert.equal(await root(c).locator('.ball img').getAttribute('src'),custom);
+ await act(c,'settings').click();await act(c,'reset-launcher').click();assert.equal(await root(c).locator('.custom-launcher').count(),0);
+ console.log('PASS filled-output highlighting and native editing/copy, official About, JSON preference/icon/draft restoration and icon reset');
+ assert.deepEqual(errors,[]);
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

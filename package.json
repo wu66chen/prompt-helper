@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node build.cjs",
-    "test": "node --test tests/core.test.cjs tests/webdav.test.cjs tests/sites.test.cjs",
+    "test": "node --test tests/core.test.cjs tests/webdav.test.cjs tests/sites.test.cjs tests/profile.test.cjs",
     "test:ui": "node tests/browser.cjs",
     "test:window": "node tests/window.cjs",
     "test:controls": "node tests/window-controls.cjs",
@@ -19,7 +19,9 @@
     "test:clipboard": "node tests/clipboard.cjs",
     "test:motion": "node tests/motion.cjs",
     "test:tooltip": "node tests/tooltip.cjs",
-    "test:launcher": "node tests/launcher-size.cjs"
+    "test:launcher": "node tests/launcher-size.cjs",
+    "test:profile": "node tests/profile-browser.cjs",
+    "test:interactions": "node tests/interaction-regressions.cjs"
   },
   "devDependencies": {
     "playwright": "^1.58.0"

@@ -138,3 +138,21 @@
 .prompt-preview{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.8;margin-bottom:16px}
 .preview-actions{margin:12px 0}
 .dialog h2{overflow-wrap:anywhere}
+/* Dense title cards keep copying visible without reserving excerpt space. */
+.titles-only .prompt-items{grid-auto-rows:auto;align-items:start;gap:8px}
+.titles-only .prompt,.compact .titles-only .prompt{min-height:0;padding:10px 12px}
+.titles-only .prompt h3{font-size:14px;line-height:1.5}
+.titles-only .prompt-bottom{padding-top:8px;margin-top:0}
+.sidebar-tools,.sidebar-collapsed .sidebar-tools{justify-content:flex-start;padding-left:2px}
+.sidebar-collapsed .sidebar{padding:14px 10px}
+.sidebar .nav-item,.sidebar-collapsed .nav-item{padding-left:9px;justify-content:flex-start}
+.sidebar-collapsed .nav-item{padding-top:7px;padding-bottom:7px;min-height:34px}
+.tag-count{display:inline-block;margin-left:6px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.manage-tag{position:relative;gap:4px;flex-wrap:wrap}
+.manage-tag .tag-name{min-width:80px}
+.manage-tag .icon-btn{width:28px;height:32px;flex-shrink:0}
+.manage-tag select{width:108px}
+.manage-group{position:relative}
+.drop-before:before,.drop-after:after{content:'';position:absolute;left:0;right:0;height:2px;background:var(--blue);pointer-events:none;z-index:1}
+.drop-before:before{top:0}.drop-after:after{bottom:0}
+.custom-launcher{filter:none!important;object-fit:contain}

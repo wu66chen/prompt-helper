@@ -1,11 +1,43 @@
 'use strict';
 const Core = (() => {
-    const FORMAT = 'prompt-helper', VERSION = 4, MAX_OPS = 30000, MAX_BYTES = 20 * 1024 * 1024;
-    const entities = ['prompt', 'tag', 'group', 'tool'];
+    const FORMAT = 'prompt-helper', VERSION = 5, MAX_OPS = 30000, MAX_BYTES = 20 * 1024 * 1024;
+    const entities = ['prompt', 'tag', 'group', 'tool', 'preference', 'draft'];
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const tags = value => [...new Set((Array.isArray(value) ? value : String(value).split(/[,，]/)).map(t => String(t).trim()).filter(Boolean))];
     const order = (a, b) => a.at - b.at || a.id.localeCompare(b.id);
     const isText = (x, max) => typeof x === 'string' && x.length <= max;
+    function preference(name,data) {
+        const bools=['compact','opaque','sidebarCollapsed','syncPosition','motion','autoSync'];
+        let valid=bools.includes(name)&&typeof data==='boolean';
+        if(name==='theme')valid=['system','light','dark'].includes(data);
+        if(name==='libraryLayout')valid=['list','masonry','grid','titles'].includes(data);
+        if(name==='launcherSize')valid=Number.isInteger(data)&&data>=48&&data<=128;
+        if(name==='launcherIcon'){
+            valid=data==='';
+            if(isText(data,360000)&&/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$/.test(data)){
+                try{const head=atob(data.slice(22,66)),size=i=>[0,1,2,3].reduce((n,k)=>n*256+head.charCodeAt(i+k),0);valid=head.slice(12,16)==='IHDR'&&[size(16),size(20)].every(n=>Number.isInteger(n)&&n>0&&n<=256);}catch{valid=false;}
+            }
+        }
+        if(name==='collapseModes')valid=data&&['button','double','outside'].every(k=>typeof data[k]==='boolean')&&Object.keys(data).length===3;
+        if(name==='sites')valid=data&&Array.isArray(data.disabledDefaults)&&data.disabledDefaults.length<=200&&data.disabledDefaults.every(h=>isText(h,253))&&Array.isArray(data.custom)&&data.custom.length<=200&&data.custom.every(r=>r&&isText(r.host,253)&&typeof r.enabled==='boolean'&&typeof r.subdomains==='boolean'&&Object.keys(r).every(k=>['host','enabled','subdomains'].includes(k)))&&Object.keys(data).every(k=>['disabledDefaults','custom'].includes(k));
+        if(name==='layout')valid=data&&['up-left','up-right','down-left','down-right'].includes(data.direction)&&data.size&&['w','h'].every(k=>Number.isFinite(data.size[k])&&data.size[k]>0&&data.size[k]<=20000)&&data.relative&&['x','y'].every(k=>Number.isFinite(data.relative[k])&&data.relative[k]>=0&&data.relative[k]<=1);
+        if(!valid)throw Error('使用偏好格式不正确或包含不支持的字段');
+        if(name==='layout')return {name,data:{size:{w:data.size.w,h:data.size.h},relative:{x:data.relative.x,y:data.relative.y},direction:data.direction}};
+        return {name,data:JSON.parse(JSON.stringify(data))};
+    }
+    function cleanDraft(value){
+        const f=value?.form;if(!f||!['edit','use','tool'].includes(f.mode)||!isText(value.site,253)||!Number.isSafeInteger(value.at)||value.at<0)throw Error('草稿格式不正确');
+        const out={mode:f.mode};
+        for(const k of ['draftId','key','title','content','tags','description','output','toolBase','initial']){
+            if(f[k]!==undefined){if(!isText(f[k],k==='initial'?500000:200000))throw Error('草稿内容过长');out[k]=f[k];}
+        }
+        if(!out.draftId||!out.key||!isText(out.content,200000))throw Error('草稿缺少必要内容');
+        for(const k of ['base','toolParents'])if(f[k]!==undefined){if(!Array.isArray(f[k])||f[k].length>MAX_OPS||!f[k].every(x=>isText(x,300)))throw Error('草稿引用无效');out[k]=[...f[k]];}
+        for(const k of ['favorite','toolExisting'])if(f[k]!==undefined)out[k]=!!f[k];
+        if(f.values){if(Object.keys(f.values).length>1000||!Object.entries(f.values).every(([k,v])=>isText(k,200000)&&isText(v,200000)))throw Error('草稿变量无效');out.values=Object.fromEntries(Object.entries(f.values));}
+        if(f.outputRanges){if(!Array.isArray(f.outputRanges)||f.outputRanges.length>10000||!f.outputRanges.every(r=>Array.isArray(r)&&r.length===2&&r.every(n=>Number.isInteger(n)&&n>=0&&n<=200000)&&r[1]>=r[0]))throw Error('草稿高亮范围无效');out.outputRanges=f.outputRanges.map(r=>[...r]);}
+        return {form:out,at:value.at,site:value.site};
+    }
     function validateValue(entity, v) {
         if (v === null) return;
         if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('记录格式不正确');
@@ -13,6 +45,8 @@ const Core = (() => {
             if (!isText(v.content, 200000) || !v.content.trim() || !isText(v.title, 300) || !Array.isArray(v.tags) || v.tags.length > 100 || !v.tags.every(t => isText(t, 100) && t.trim()) || typeof v.favorite !== 'boolean') throw Error('提示词内容或标签格式不正确');
         } else if(entity==='tool') {
             if(!isText(v.title,100)||!v.title.trim()||!isText(v.description,300)||!isText(v.text,200000)||!v.text.trim())throw Error('工具提示词格式不正确');
+        } else if(entity==='preference') { preference(v.name,v.data);
+        } else if(entity==='draft') { cleanDraft(v);
         } else {
             if (!isText(v.name, 100) || !v.name.trim() || !Number.isFinite(v.rank)) throw Error('分组或标签格式不正确');
             if (entity === 'tag' && !isText(v.group, 300)) throw Error('标签分组格式不正确');
@@ -25,6 +59,7 @@ const Core = (() => {
         for (const op of ops) {
             if (!op || !isText(op.id, 300) || !op.id || !entities.includes(op.entity) || !isText(op.key, 300) || !op.key || !isText(op.device, 300) || !Number.isSafeInteger(op.at) || op.at < 0 || !Array.isArray(op.parents) || op.parents.length > MAX_OPS || !op.parents.every(p => isText(p, 300)) || !Object.hasOwn(op, 'value')) throw Error('备份包含无效记录');
             validateValue(op.entity, op.value);
+            if(op.entity==='preference'&&op.value&&op.key!==op.value.name)throw Error('使用偏好名称不一致');
             if (map.has(op.id)) throw Error('备份包含重复的记录编号');
             map.set(op.id, op);
         }
@@ -57,6 +92,8 @@ const Core = (() => {
         const value = v === null ? null : op.entity === 'prompt'
             ? {title:v.title,content:v.content,tags:[...v.tags],favorite:v.favorite}
             : op.entity === 'tool' ? {title:v.title,description:v.description,text:v.text}
+            : op.entity === 'preference' ? preference(v.name,v.data)
+            : op.entity === 'draft' ? cleanDraft(v)
             : op.entity === 'group' ? {name:v.name,rank:v.rank,...(v.color !== undefined ? {color:v.color} : {})} : {name:v.name,rank:v.rank,group:v.group};
         return {id:op.id,entity:op.entity,key:op.key,at:op.at,device:op.device,parents:[...new Set(op.parents)].sort(),value};
     }
@@ -76,13 +113,13 @@ const Core = (() => {
             if (!buckets.has(id)) buckets.set(id, []);
             buckets.get(id).push(op);
         }
-        const result = {prompt:[],tag:[],group:[],tool:[],heads:new Map()};
+        const result = {prompt:[],tag:[],group:[],tool:[],preference:[],draft:[],heads:new Map()};
         for (const list of buckets.values()) {
             const replaced = new Set(list.flatMap(op => op.parents));
             const heads = list.filter(op => !replaced.has(op.id)).sort(order);
             const {entity,key} = list[0];
             result.heads.set(entity + ':' + key, heads);
-            const visible = entity === 'prompt'||entity==='tool' ? heads : heads.slice(-1);
+            const visible = ['prompt','tool','draft'].includes(entity) ? heads : heads.slice(-1);
             for (const op of visible) if (op.value !== null) result[entity].push({...op.value,key,revision:op.id,at:op.at,conflict:heads.length > 1,deletedConflict:heads.some(h => h.value === null)});
         }
         // The built-in ungrouped bucket has appearance metadata but is not a tag destination.
@@ -98,7 +135,7 @@ const Core = (() => {
         if (new TextEncoder().encode(text).length > MAX_BYTES) throw Error('文件超过 20 MB，请先拆分或整理备份');
         let data;
         try { data = JSON.parse(text); } catch { throw Error('文件不是有效的 JSON 备份'); }
-        if (data.format !== FORMAT || ![3,VERSION].includes(data.version)) throw Error('备份版本不支持，请更新提示词助手后重试');
+        if (data.format !== FORMAT || ![3,4,VERSION].includes(data.version)) throw Error('备份版本不支持，请更新提示词助手后重试');
         return validate(data.operations).map(canonical);
     }
     function parseLegacy(text) {

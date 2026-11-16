@@ -6,7 +6,7 @@ const matches = '// @match        http://*/*\n// @match        https://*/*';
 const header = `// ==UserScript==
 // @name         提示词助手
 // @namespace    http://tampermonkey.net/
-// @version      3.13.0
+// @version      3.14.0
 // @description  macOS 风格提示词资料库：分组、全文搜索、变量填写、草稿与坚果云 WebDAV 同步。
 // @author       Wesley Liu
 ${matches}
@@ -21,13 +21,14 @@ ${matches}
 // @connect      dav.jianguoyun.com
 // @noframes
 // @run-at       document-end
-// @updateURL    none
+// @updateURL    https://update.greasyfork.org/scripts/573984/提示词助手.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/573984/提示词助手.user.js
 // @license      MIT
 // ==/UserScript==
 `;
 const core = fs.readFileSync(path.join(dir,'src/core.cjs'),'utf8').replace(/module\.exports = Core;\s*$/, '');
 const css = fs.readFileSync(path.join(dir,'src/style.css'),'utf8');
-const app = fs.readFileSync(path.join(dir,'src/app.js'),'utf8');
+const app = fs.readFileSync(path.join(dir,'src/app.js'),'utf8')+'\n'+fs.readFileSync(path.join(dir,'src/profile.js'),'utf8');
 const sites = fs.readFileSync(path.join(dir,'src/sites.cjs'),'utf8').replace(/module\.exports=SiteRules;\s*$/, '');
 const entry = fs.readFileSync(path.join(dir,'src/entry.js'),'utf8');
 // Embed locally so the launcher works offline and adds no external request.
