@@ -12,17 +12,17 @@ if (!device) { device = id(); GM_setValue(PREFIX+'device', device); }
 const SETTINGS_KEY=PREFIX+'settings_global',LAYOUT_KEY=PREFIX+'layout_global';
 const TOOL_PREFIX=PREFIX+'tool_';
 const normalizeLibraryLayout=value=>['list','masonry','grid','titles'].includes(value)?value:'grid';
-const defaults = {theme:'system',compact:false,libraryLayout:'grid',opaque:false,sidebarCollapsed:false,syncPosition:true,motion:true,launcherSize:72,launcherIcon:''};
+const defaults = {theme:'system',compact:false,libraryLayout:'grid',opaque:false,sidebarCollapsed:false,syncPosition:true,motion:true,launcherSize:72,launcherIcon:'',fontSize:14};
 const previousTheme=GM_getValue('db_theme_mode_'+site,'system');
 const globalSettings=GM_getValue(SETTINGS_KEY,null);
 const storedSettings=globalSettings||GM_getValue(PREFIX+'settings_'+site,{});
-let settings = {...defaults,theme:['light','dark'].includes(previousTheme)?previousTheme:'system',...storedSettings,libraryLayout:normalizeLibraryLayout(storedSettings.libraryLayout),launcherSize:Core.launcherSize(storedSettings.launcherSize),collapseModes:Core.collapseModes(storedSettings)};
+let settings = {...defaults,theme:['light','dark'].includes(previousTheme)?previousTheme:'system',...storedSettings,fontSize:Math.max(12,Math.min(20,Math.round(Number(storedSettings.fontSize)||14))),libraryLayout:normalizeLibraryLayout(storedSettings.libraryLayout),launcherSize:Core.launcherSize(storedSettings.launcherSize),collapseModes:Core.collapseModes(storedSettings)};
 if(!globalSettings)GM_setValue(SETTINGS_KEY,settings);
 let ops = [], state, view = 'library', filter = {kind:'all',key:''}, query = '', form = null, settingsTab = 'appearance';
-let expanded = new Set(), toastTimer, draftTimer, searchTimer, autoTimer, syncBusy = false, syncQueued = false, highlightObserver;
+let expanded = new Set(), toastTimer, searchTimer, autoTimer, syncBusy = false, syncQueued = false, highlightObserver;
 let masonryObserver,masonryFrame=0;
 let portableReady=false;const portableApplied=new Map();
-let outputHistory=new Map(),outputHistoryId='';
+let outputHistory=new Map(),outputHistoryId='';const navigation=[];
 let copyBusy=false,clipboardBridgeActive=false;
 let errorStatus = '', session = id(), dialogReturnFocus = null, lastFocused = null, isOpen = false, activeDrag = false;
 const sharedLayout=settings.syncPosition?GM_getValue(LAYOUT_KEY,null):null;
@@ -177,7 +177,7 @@ function animateView(){
 function applyTheme() {
     host.dataset.theme=settings.theme==='system'?(themeMedia.matches?'dark':'light'):settings.theme;panel.classList.toggle('compact',settings.compact);panel.classList.toggle('opaque',settings.opaque);
     panel.classList.toggle('sidebar-collapsed',settings.sidebarCollapsed);
-    updateLauncherPreview();
+    updateLauncherPreview();applyTypography();
     $('[data-action=collapse]').disabled=!settings.collapseModes.button;
     $('[data-action=collapse]').title=settings.collapseModes.button?'收起为悬浮球':'点击 × 收起已关闭，可在设置中启用';
     $$('[name=collapse]').forEach(input=>input.checked=settings.collapseModes[input.value]);
@@ -205,7 +205,7 @@ function receiveSettings(value) {
     const previousLayout=settings.libraryLayout;
     const oldSize=settings.launcherSize,oldLayout=layoutValue();
     const sidebarChanged=settings.sidebarCollapsed!==value.sidebarCollapsed,previousX=content.getBoundingClientRect().x;
-    settings={...defaults,...value,libraryLayout:normalizeLibraryLayout(value.libraryLayout),launcherSize:Core.launcherSize(value.launcherSize),collapseModes:Core.collapseModes(value)};
+    settings={...defaults,...value,fontSize:Math.max(12,Math.min(20,Math.round(Number(value.fontSize)||14))),libraryLayout:normalizeLibraryLayout(value.libraryLayout),launcherSize:Core.launcherSize(value.launcherSize),collapseModes:Core.collapseModes(value)};
     if(oldSize!==settings.launcherSize){
         const v=viewport();
         if(isOpen)placeBall(Core.launcherFromRect(geometry,direction,v.w,v.h,settings.launcherSize));
@@ -271,23 +271,19 @@ function draftList() {
     return [...cached,...saved].sort((a,b)=>b.at-a.at);
 }
 function persistDraft(force=false) {
-    clearTimeout(draftTimer);if(!form)return;
-    if(protectedEdit()&&!force)return;
+    if(force!==true||!form)return;
     const value={form:JSON.parse(JSON.stringify(form)),at:Date.now(),site};
-    if(force===true){const revision=publishDraft(value,form.draftParents);form.draftParents=[revision];GM_deleteValue(DRAFT+form.draftId);}
-    else {GM_setValue(DRAFT+form.draftId,value);scheduleSync();}
+    const revision=publishDraft(value,form.draftParents);form.draftParents=[revision];form.initial=formSnapshot(form);GM_deleteValue(DRAFT+form.draftId);
 }
-function leaveForm() { if(form&&!protectedEdit())persistDraft(true);clearTimeout(draftTimer);form=null; }
-function back() { requestLeave(()=>{const next=form?.mode==='tool'?'prompt-tools':'library';leaveForm();view=next;render();}); }
+function leaveForm(){form=null;}
 function openPanel() {
     if(isOpen)return;
     lastFocused=document.activeElement; isOpen=true; panel.hidden=false; ball.hidden=true;
     if(!storageBroken) refresh(); positionFromAnchor(); render();
     ($('.search-input')||$('[name=content]')||$('[name=output]')||$('[data-action=new]')).focus();
 }
-function collapsePanel() { stopMotion();hideSidebarTooltip();persistDraft();placePanel(); isOpen=false; panel.hidden=true;$$('.resize-handle').forEach(handle=>handle.hidden=true); ball.hidden=false; $('.overlay').hidden=true; placeBall();playMotion(ball,[{opacity:.65},{opacity:1}],150);playMotion(ball.querySelector('.launcher-icon'),[{transform:'scale(.9)'},{transform:'scale(1)'}],150);lastFocused?.focus?.({preventScroll:true}); }
-function navigate(next) { requestLeave(()=>{leaveForm();view=next;panel.classList.remove('nav-open');render();}); }
-function syncSettings() { settingsTab='sync'; navigate('settings'); }
+function collapsePanel() { stopMotion();hideSidebarTooltip();placePanel(); isOpen=false; panel.hidden=true;$$('.resize-handle').forEach(handle=>handle.hidden=true); ball.hidden=false; $('.overlay').hidden=true; placeBall();playMotion(ball,[{opacity:.65},{opacity:1}],150);playMotion(ball.querySelector('.launcher-icon'),[{transform:'scale(.9)'},{transform:'scale(1)'}],150);lastFocused?.focus?.({preventScroll:true}); }
+function syncSettings(){navigate('settings',{tab:'sync'});}
 function updateStatus() {
     host.dataset.syncing=String(syncBusy);$('[data-action=sync]').setAttribute('aria-busy',String(syncBusy));
     const meta=GM_getValue(PREFIX+'sync_meta',{}), config=GM_getValue(PREFIX+'sync',{});
@@ -326,7 +322,7 @@ function currentFilter() {
 }
 function renderLibrary() {
     const f=currentFilter();
-    content.innerHTML=`<div class="searchbar"><label class="search-box">${icon('search')}<input class="search-input" type="search" aria-label="搜索提示词" placeholder="搜索标题、内容或标签" value="${esc(query)}"><span title="Ctrl / ⌘ + K" aria-hidden="true" style="font-size:10px;white-space:nowrap">Ctrl K</span></label><div class="tag-filter" role="group" aria-label="按标签筛选"></div><div class="meta"><span class="name">${esc(f.name)}</span><span class="results-count"></span></div></div><div class="scroll prompt-list"></div>`;
+    content.innerHTML=`<div class="searchbar"><label class="search-box">${navigation.length?ibtn('back','返回上一页','back'):''}${icon('search')}<input class="search-input" type="search" aria-label="搜索提示词" placeholder="搜索标题、内容或标签" value="${esc(query)}"><span title="Ctrl / ⌘ + K" aria-hidden="true" style="font-size:calc(10px * var(--font-scale,1));white-space:nowrap">Ctrl K</span></label><div class="tag-filter" role="group" aria-label="按标签筛选"></div><div class="meta"><span class="name">${esc(f.name)}</span><span class="results-count"></span></div></div><div class="scroll prompt-list"></div>`;
     renderList();
 }
 function renderList() {
@@ -372,25 +368,25 @@ function layoutMasonry(){
     cards.forEach((card,i)=>{const column=heights.indexOf(Math.min(...heights));card.style.left=(column*(width+gap))+'px';card.style.top=heights[column]+'px';heights[column]+=sizes[i]+gap;});
     items.style.height=Math.max(0,Math.max(...heights)-gap)+'px';items.dataset.columns=columns;
 }
-function viewHeader(title,action='back') { return `<div class="view-header">${ibtn(action,action==='prompt-tools'?'返回优化 Prompt':'返回提示词','back')}<h2>${esc(title)}</h2></div>`; }
+function viewHeader(title) { return `<div class="view-header">${ibtn('back','返回上一页','back')}<h2>${esc(title)}</h2></div>`; }
 function field(name,label,value='',placeholder='',type='text') { return `<label class="field"><span>${esc(label)}</span><input class="input" name="${name}" type="${type}" value="${esc(value)}" placeholder="${esc(placeholder)}" ${type==='password'?'autocomplete="new-password"':''}></label>`; }
 function startEditor(p,mode='edit',confirmed=false) {
     if(!confirmed&&protectedEdit()){requestLeave(()=>startEditor(p,mode,true));return;}
-    leaveForm();
+    rememberPage();leaveForm();
     form={draftId:id(),mode,key:p?.key||id(),base:p?[p.revision]:[],title:p?.title||'',content:p?.content||'',tags:(p?.tags||[]).join(', '),favorite:p?.favorite||false,values:{},output:p?Core.fill(p.content,{}):''};
-    form.initial=formSnapshot(form);if(mode==='use')fillOutput();
+    if(mode==='use')fillOutput();form.initial=formSnapshot(form);
     view='editor'; panel.classList.remove('nav-open'); render();
     ($('[name=title]')||$('[name=output]'))?.focus();
 }
 function renderEditor() {
     if(form.mode==='tool'){renderToolEditor();return;}
     const temp=form.mode==='use';
-    content.innerHTML=viewHeader(temp?'填写并使用':form.base.length?'编辑提示词':'新建提示词')+`<div class="scroll form-scroll">${temp?`<p class="hint">这次修改仅用于复制，原模板保持不变。</p>${variables(form.content).map((v,i)=>field('variable-'+i,v,form.values[v]||'','填写 '+v)).join('')}<label class="field"><span>本次使用的内容</span><textarea class="input" name="output" rows="10">${esc(form.output)}</textarea></label>`:`${field('title','标题（可选）',form.title,'例如：把会议记录整理成行动清单')}<label class="field"><span>提示词内容</span><textarea class="input" name="content" rows="10" placeholder="输入提示词，用 {{主题}} 标记每次需要填写的部分">${esc(form.content)}</textarea></label><div class="form-toolbar">${btn('mark-variable','设为变量')}${btn('unmark-variable','恢复普通文本')}</div><p class="hint">选中文字后设为变量。同名变量只需填写一次。</p>${field('tags','标签',form.tags,'多个标签用中文或英文逗号分隔')}<datalist id="tag-suggestions">${state.tag.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist>`}</div><div class="form-footer"><span class="hint">${protectedEdit()?'离开时可选择放弃或存草稿':'编辑自动保留，可随云同步迁移'}</span>${btn('discard-draft','丢弃草稿')}${temp?'<button class="btn primary" data-action="copy-output">'+icon('copy')+'复制内容</button>':'<button class="btn primary" data-action="save-prompt">保存提示词</button>'}</div>`;
+    content.innerHTML=viewHeader(temp?'填写并使用':form.base.length?'编辑提示词':'新建提示词')+`<div class="scroll form-scroll">${temp?`<p class="hint">这次修改仅用于复制，原模板保持不变。</p>${variables(form.content).map((v,i)=>field('variable-'+i,v,form.values[v]||'','填写 '+v)).join('')}<label class="field"><span>本次使用的内容</span><textarea class="input" name="output" rows="10">${esc(form.output)}</textarea></label>`:`${field('title','标题（可选）',form.title,'例如：把会议记录整理成行动清单')}<label class="field"><span>提示词内容</span><textarea class="input" name="content" rows="10" placeholder="输入提示词，用 {{主题}} 标记每次需要填写的部分">${esc(form.content)}</textarea></label><div class="form-toolbar">${btn('mark-variable','设为变量')}${btn('unmark-variable','恢复普通文本')}</div><p class="hint">选中文字后设为变量。同名变量只需填写一次。</p>${field('tags','标签',form.tags,'多个标签用中文或英文逗号分隔')}<datalist id="tag-suggestions">${state.tag.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist>`}</div><div class="form-footer"><span class="hint">修改后可存草稿，离开时会提醒</span>${btn('save-draft','存草稿')}${btn('discard-draft',form.draftParents?.length?'删除草稿':'放弃编辑')}${temp?'<button class="btn primary" data-action="copy-output">'+icon('copy')+'复制内容</button>':'<button class="btn primary" data-action="save-prompt">保存提示词</button>'}</div>`;
     $('[name=tags]')?.setAttribute('list','tag-suggestions');
 }
 function renderDrafts() {
     const drafts=draftList();
-    content.innerHTML=viewHeader('草稿')+`<div class="scroll">${drafts.length?drafts.map(d=>`<article class="draft-row"><h3>${esc(d.form.title||d.form.content?.slice(0,45)||'未命名草稿')}</h3><p class="hint">${esc(d.site)}${d.conflict?' · 多设备编辑版本':''} · ${new Date(d.at).toLocaleString('zh-CN')}</p><div class="actions">${btn('restore-draft','继续编辑','edit',`data-key="${esc(d.storageKey)}"`)}${btn('remove-draft','删除草稿','trash',`data-key="${esc(d.storageKey)}"`)}</div></article>`).join(''):'<div class="empty"><h3>没有未完成的草稿</h3><p>保存的草稿会在这里显示，可随坚果云迁移。</p></div>'}</div>`;
+    content.innerHTML=viewHeader('草稿')+`<div class="scroll">${drafts.length?drafts.map(d=>`<article class="draft-row"><span class="draft-kind">${esc(draftKind(d.form))}</span><h3>${esc(d.form.title||d.form.content?.slice(0,45)||'未命名草稿')}</h3><p class="hint">${esc(d.site)}${d.conflict?' · 多设备编辑版本':''} · ${new Date(d.at).toLocaleString('zh-CN')}</p><div class="actions">${btn('restore-draft','继续编辑','edit',`data-key="${esc(d.storageKey)}"`)}${btn('remove-draft','删除草稿','trash',`data-key="${esc(d.storageKey)}"`)}</div></article>`).join(''):'<div class="empty"><h3>没有未完成的草稿</h3><p>保存的草稿会在这里显示，可随坚果云迁移。</p></div>'}</div>`;
 }
 function renderPromptTools() {
     const cards=readTools().map(tool=>{
@@ -398,7 +394,7 @@ function renderPromptTools() {
         const conflict=tool.conflict?`<div class="conflict">${tool.deletedConflict?'此工具存在修改与删除／恢复内置的冲突':'此工具存在并行修改，已保留各版本'}${btn('resolve-tool','保留此版本',null,attrs)}${tool.deletedConflict?btn('resolve-tool-empty',tool.builtin?'使用内置版本':'确认删除',null,attrs):''}</div>`:'';
         return `<article class="tool-card" data-tool="${esc(tool.key)}"><h3>${esc(tool.title)}</h3>${tool.description?`<p>${esc(tool.description)}</p>`:''}${conflict}<div class="tool-actions"><button type="button" class="btn primary" data-action="copy-tool" ${attrs}>${icon('copy')}复制提示词</button>${btn('edit-tool','编辑',null,attrs)}${tool.builtin?(tool.modified?btn('reset-tool','恢复内置',null,attrs):''):btn('delete-tool','删除',null,attrs)}</div></article>`;
     }).join('');
-    content.innerHTML=viewHeader('优化 Prompt')+`<div class="scroll tool-library"><div class="tool-library-toolbar"><p class="tool-intro">复制到你常用的 AI 平台，再发送需要处理的原文。</p>${btn('new-tool','添加工具','plus')}</div>${cards}<p class="hint">工具的修改、自定义内容及删除记录包含在 JSON 备份中；配置坚果云后也会同步。所有设备请使用 3.11.0 或更新版本。</p></div>`;
+    content.innerHTML=viewHeader('优化 Prompt')+`<div class="scroll tool-library"><div class="tool-library-toolbar"><p class="tool-intro">复制到你常用的 AI 平台，再发送需要处理的原文。</p>${btn('new-tool','添加工具','plus')}</div>${cards}<p class="hint">工具的修改、自定义内容及删除记录包含在 JSON 备份中；配置坚果云后也会同步。所有设备请使用 3.15.0 或更新版本。</p></div>`;
 }
 function readTools(){
     refresh();
@@ -421,20 +417,20 @@ function findTool(target){return readTools().find(t=>t.key===target.dataset.key&
 function startToolEditor(key,revision,confirmed=false){
     if(!confirmed&&protectedEdit()){requestLeave(()=>startToolEditor(key,revision,true));return;}
     const tool=key?readTools().find(t=>t.key===key&&(!revision||t.revision===revision)):null;if(key&&!tool){toast('工具已删除，请重新选择');return;}
-    const editKey=key||'custom-'+id();leaveForm();form={mode:'tool',draftId:id(),key:editKey,toolExisting:!!tool,toolBase:toolSnapshot(editKey),toolParents:tool?.revision?[tool.revision]:JSON.parse(toolSnapshot(editKey)),title:tool?.title||'',description:tool?.description||'',content:tool?.text||''};
-    view='editor';panel.classList.remove('nav-open');persistDraft();render();$('[name=title]').focus();
+    const editKey=key||'custom-'+id();rememberPage();leaveForm();form={mode:'tool',draftId:id(),key:editKey,toolExisting:!!tool,toolBase:toolSnapshot(editKey),toolParents:tool?.revision?[tool.revision]:JSON.parse(toolSnapshot(editKey)),title:tool?.title||'',description:tool?.description||'',content:tool?.text||''};
+    form.initial=formSnapshot(form);view='editor';panel.classList.remove('nav-open');render();$('[name=title]').focus();
 }
 function renderToolEditor(){
-    content.innerHTML=viewHeader(form.toolExisting?'编辑工具提示词':'添加工具提示词','prompt-tools')+`<div class="scroll form-scroll"><p class="hint">这里编辑的是复制给其他 AI 的工具指令。复制时原样保留 {{变量名}}，不会提前替换。</p>${field('title','工具名称',form.title,'例如：检查提示词中的变量')}${field('description','简短说明（可选）',form.description||'','说明工具的用途')}<label class="field"><span>工具提示词</span><textarea class="input" name="content" rows="12" maxlength="200000" placeholder="输入要一键复制的完整指令">${esc(form.content)}</textarea></label></div><div class="form-footer tool-editor-footer"><span class="hint">${protectedEdit()?'离开时可选择放弃或存草稿':'编辑自动保留，可随云同步迁移'}</span>${btn('discard-draft','丢弃草稿')}${form.toolExisting?btn('save-tool-copy','另存为新工具'):''}<button class="btn primary" data-action="save-prompt">保存工具</button></div>`;
+    content.innerHTML=viewHeader(form.toolExisting?'编辑工具提示词':'添加工具提示词')+`<div class="scroll form-scroll"><p class="hint">这里编辑的是复制给其他 AI 的工具指令。复制时原样保留 {{变量名}}，不会提前替换。</p>${field('title','工具名称',form.title,'例如：检查提示词中的变量')}${field('description','简短说明（可选）',form.description||'','说明工具的用途')}<label class="field"><span>工具提示词</span><textarea class="input" name="content" rows="12" maxlength="200000" placeholder="输入要一键复制的完整指令">${esc(form.content)}</textarea></label></div><div class="form-footer tool-editor-footer"><span class="hint">修改后可存草稿，离开时会提醒</span>${btn('save-draft','存草稿')}${btn('discard-draft',form.draftParents?.length?'删除草稿':'放弃编辑')}${form.toolExisting?btn('save-tool-copy','另存为新工具'):''}<button class="btn primary" data-action="save-prompt">保存工具</button></div>`;
     $('[name=title]').maxLength=100;$('[name=description]').maxLength=300;
 }
 function saveTool(asCopy=false){
     const value={title:form.title.trim(),description:(form.description||'').trim(),text:form.content.trim()};
     if(!validTool(value))throw Error('请填写工具名称和提示词；名称最多 100 字，说明最多 300 字，正文最多 200000 字');
     if(!form.toolParents&&form.toolBase==='null'&&toolSnapshot(form.key)==='[]'){form.toolParents=[];form.toolBase='[]';}
-    if(!asCopy&&(!form.toolParents||toolSnapshot(form.key)!==form.toolBase)){persistDraft();throw Error('这个工具已在其他页面修改、删除或升级了存储格式。草稿已保留，请另存为新工具，或返回列表重新编辑');}
+    if(!asCopy&&(!form.toolParents||toolSnapshot(form.key)!==form.toolBase)){throw Error('这个工具已在其他页面修改或删除。请另存为新工具，或点击存草稿保留编辑内容');}
     commit('tool',asCopy?'custom-'+id():form.key,value,asCopy?[]:form.toolParents);
-    removeDraft(form.draftId,form.draftParents);clearTimeout(draftTimer);form=null;view='prompt-tools';render();toast('工具提示词已保存');
+    removeDraft(form.draftId,form.draftParents);form=null;returnToPrevious();toast('工具提示词已保存');
 }
 function render() {
     stopMasonry();
@@ -477,7 +473,7 @@ function updateLauncherPreview(value=settings.launcherSize) {
 function launcherSettings() {
     return `<section class="section launcher-settings"><div class="setting-row"><label for="launcher-size">悬浮图标大小</label><output data-launcher-size for="launcher-size">${settings.launcherSize} px</output></div><div class="launcher-preview" style="--preview-size:${settings.launcherSize}px" aria-hidden="true">${launcherMarkup()}</div><input id="launcher-size" name="launcherSize" class="launcher-range" type="range" min="48" max="128" step="4" value="${settings.launcherSize}" aria-valuetext="${settings.launcherSize} 像素" aria-describedby="launcher-size-hint"><div class="launcher-size-footer"><span>48 px</span>${btn('reset-launcher-size','恢复默认 72 px')}<span>128 px</span></div><p id="launcher-size-hint" class="hint">拖动滑块预览，松开后自动保存；也可用方向键微调。图标与点击区域一起缩放，所有网站共用。</p><div class="inline">${btn('upload-launcher','选择自定义 PNG')}${btn('reset-launcher','恢复小海豹')}</div><input class="launcher-file" type="file" accept="image/png,.png" hidden><p class="hint">推荐透明底、主体居中且留白较少的清晰 PNG，256 × 256 或 512 × 512 像素。仅支持 PNG，文件不超过 1 MB，宽高均为 64–2048 像素。保存时缩至最长边 256 像素，保留透明度；图标会进入完整备份和坚果云同步。</p></section>`;
 }
-function showWebsiteSettings(){openPanel();settingsTab='sites';navigate('settings');}
+function showWebsiteSettings(){openPanel();navigate('settings',{tab:'sites'});}
 function siteSettings(){
     const rules=readSites(),enabled=siteEnabled();
     const check=(name,host,label,on)=>`<label class="check"><input type="checkbox" name="${name}" data-host="${esc(host)}" ${on?'checked':''} ${name==='site-custom-subdomains'&&/^\[|^\d+(?:\.\d+){3}$|^localhost$/.test(host)?'disabled title="IP 地址和 localhost 不适用"':''}>${label}</label>`;
@@ -496,10 +492,10 @@ function saveSites(change){
 function renderSettings() {
     const config=GM_getValue(PREFIX+'sync',{}), meta=GM_getValue(PREFIX+'sync_meta',{});
     let body='';
-    if(settingsTab==='appearance') body=`<section class="section"><h3>外观</h3><p class="hint">本浏览器内所有网站共用这些偏好，修改后已打开的页面也会更新。</p><label class="setting-row">主题<select class="input" name="theme">${[['system','跟随系统'],['light','浅色'],['dark','深色']].map(([v,l])=>`<option value="${v}" ${settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="setting-row">提示词库排列方式<select class="input" name="libraryLayout">${[['grid','等高网格（推荐默认）'],['titles','纯标题网格'],['masonry','瀑布流'],['list','单列列表']].map(([value,label])=>`<option value="${value}" ${settings.libraryLayout===value?'selected':''}>${label}</option>`).join('')}</select></label><p class="hint">等高网格便于整齐浏览；纯标题网格隐藏正文与标签，点击标题查看全文；瀑布流按内容高度补位。标题均可换行，窄窗口自动减少列数。已保存的排列偏好会保留。</p><label class="check"><input type="checkbox" name="compact" ${settings.compact?'checked':''}>紧凑显示，减少间距和正文行数</label><label class="check"><input type="checkbox" name="opaque" ${settings.opaque?'checked':''}>减少透明效果（使用实色背景）</label><label class="check"><input type="checkbox" name="motion" ${settings.motion!==false?'checked':''}>启用微动效</label><p class="hint">跟随系统的减少动态效果偏好；关闭后即时切换，所有网站共用。</p></section><section class="section"><h3>收起为悬浮球</h3><div class="collapse-options">${[['button','点击 × 按钮'],['double','双击顶栏或侧栏'],['outside','点击窗口外区域']].map(([v,l])=>`<label><input type="checkbox" name="collapse" value="${v}" ${settings.collapseModes[v]?'checked':''}>${l}</label>`).join('')}</div><p class="hint collapse-hint">${Object.values(settings.collapseModes).some(Boolean)?'可同时勾选多种方式，所有网站共用。收起保留当前编辑；拖动、缩放和确认弹窗不会触发收起。':'未启用任何收起方式，窗口会保持展开。可在这里重新勾选。'}</p></section><section class="section"><h3>窗口</h3><label class="check"><input type="checkbox" name="syncPosition" ${settings.syncPosition?'checked':''}>所有网站共用悬浮图标和窗口位置、大小</label><p class="hint">开启后按窗口比例保持位置，自动适应不同窗口大小；连接坚果云后也同步到其他设备。关闭后，各网站的位置只保存在本机。</p><p class="hint">拖动顶栏或侧栏移动窗口，四条边和四个角都能调整大小。绿色按钮切换最大化；窗口始终保持在可视区域内。</p>${btn('reset-window','恢复窗口和悬浮球位置')}</section><section class="section"><h3>键盘操作</h3><p class="hint">面板内 Ctrl / ⌘ + K 搜索，Ctrl / ⌘ + Enter 保存或复制。Tab 切换控件。Esc 关闭确认弹窗或返回列表。</p></section>`;
-    if(settingsTab==='sync') body=`<section class="section"><h3>坚果云 WebDAV</h3><p class="hint">连接后同步资料库、标签分组、工具、已保存草稿，以及主题、排列方式、收起方式、侧栏、自定义图标、网站名单等使用偏好。开启位置共用时也同步窗口位置和大小。账号与应用密码仅保存在本机。</p><label class="field"><span>服务地址</span><input class="input" value="https://dav.jianguoyun.com/dav/" readonly></label>${field('dav-username','坚果云账号',config.username||'','通常是注册邮箱')}${field('dav-password','应用密码',config.password||'','使用第三方应用密码，不是登录密码','password')}${field('dav-folder','同步文件夹',config.folder||'PromptHelper','PromptHelper')}<p class="hint">不同设备填写相同的账号和文件夹。文件夹自动创建；首版仅支持坚果云。<a href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noopener noreferrer">如何获取应用密码</a></p><label class="check"><input type="checkbox" name="dav-auto" ${config.auto?'checked':''}>启用自动同步</label><p class="hint">修改后延迟同步，至少间隔 60 秒；打开已启用网站时每 10 分钟检查云端。浏览器关闭后不会同步。所有设备请先更新至 3.14.0 或更高版本，避免旧端无法读取新版同步文件。</p><div class="inline" style="flex-wrap:wrap">${btn('save-sync','保存配置')}${btn('test-sync','测试连接','cloud')}${btn('sync','立即同步','sync')}${btn('disconnect','断开连接')}</div></section><section class="section"><h3>同步状态</h3><p class="hint sync-detail">${esc(syncBusy?'正在同步…':errorStatus||meta.error||'就绪')}${meta.lastSuccess?'<br>上次成功：'+new Date(meta.lastSuccess).toLocaleString('zh-CN'):''}</p><p class="hint">离线时正常使用。两端同时修改会保留冲突版本；在列表中选择需要保留的版本。HTTPS 保护传输，云端 JSON 为明文，请勿存放密码或密钥。</p></section>`;
-    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏、工具提示词、使用偏好、自定义图标和草稿，不包含坚果云账号或应用密码。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.14.0<br>作者：Wesley Liu<br><a href="https://greasyfork.org/zh-CN/scripts/573984" target="_blank" rel="noopener noreferrer">Greasy Fork 官方发布页</a> · <a href="https://github.com/wu66chen/prompt-helper" target="_blank" rel="noopener noreferrer">GitHub 源码</a><br>由作者维护，通过 GitHub 同步发布。更新时保留脚本名称与命名空间，建议先导出完整备份。</p></section>`;
-    if(settingsTab==='appearance')body=launcherSettings()+body;
+    if(settingsTab==='appearance') body=`<section class="section"><h3>外观</h3><p class="hint">本浏览器内所有网站共用这些偏好，修改后已打开的页面也会更新。</p><label class="setting-row">主题<select class="input" name="theme">${[['system','跟随系统'],['light','浅色'],['dark','深色']].map(([v,l])=>`<option value="${v}" ${settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="setting-row">提示词库排列方式<select class="input" name="libraryLayout">${[['grid','等高网格（推荐默认）'],['titles','纯标题网格'],['masonry','瀑布流'],['list','单列列表']].map(([value,label])=>`<option value="${value}" ${settings.libraryLayout===value?'selected':''}>${label}</option>`).join('')}</select></label><p class="hint">等高网格便于整齐浏览；纯标题网格隐藏正文与标签，点击标题查看全文；瀑布流按内容高度补位。标题均可换行，窄窗口自动减少列数。已保存的排列偏好会保留。</p><label class="check"><input type="checkbox" name="compact" ${settings.compact?'checked':''}>紧凑显示，减少间距和正文行数</label><label class="check"><input type="checkbox" name="opaque" ${settings.opaque?'checked':''}>减少透明效果（使用实色背景）</label><label class="check"><input type="checkbox" name="motion" ${settings.motion!==false?'checked':''}>启用微动效</label><p class="hint">跟随系统的减少动态效果偏好；关闭后即时切换，所有网站共用。</p></section><section class="section"><h3>收起为悬浮球</h3><div class="collapse-options">${[['button','点击 × 按钮'],['double','双击顶栏或侧栏'],['outside','点击窗口外区域']].map(([v,l])=>`<label><input type="checkbox" name="collapse" value="${v}" ${settings.collapseModes[v]?'checked':''}>${l}</label>`).join('')}</div><p class="hint collapse-hint">${Object.values(settings.collapseModes).some(Boolean)?'可同时勾选多种方式，所有网站共用。收起保留当前编辑；拖动、缩放和确认弹窗不会触发收起。':'未启用任何收起方式，窗口会保持展开。可在这里重新勾选。'}</p></section><section class="section"><h3>窗口</h3><label class="check"><input type="checkbox" name="syncPosition" ${settings.syncPosition?'checked':''}>所有网站共用悬浮图标和窗口位置、大小</label><p class="hint">开启后按窗口比例保持位置，自动适应不同窗口大小；连接坚果云后也同步到其他设备。关闭后，各网站的位置只保存在本机。</p><p class="hint">拖动顶栏或侧栏移动窗口，四条边和四个角都能调整大小。绿色按钮切换最大化；窗口始终保持在可视区域内。</p>${btn('reset-window','恢复窗口和悬浮球位置')}</section><section class="section"><h3>键盘操作</h3><p class="hint">面板内 Ctrl / ⌘ + K 搜索，Ctrl / ⌘ + Enter 保存或复制。Tab 切换控件。Esc 关闭确认弹窗或按访问路径返回上一页。</p></section>`;
+    if(settingsTab==='sync') body=`<section class="section"><h3>坚果云 WebDAV</h3><p class="hint">连接后同步资料库、标签分组、工具、已保存草稿，以及主题、排列方式、收起方式、侧栏、自定义图标、网站名单等使用偏好。开启位置共用时也同步窗口位置和大小。账号与应用密码仅保存在本机。</p><label class="field"><span>服务地址</span><input class="input" value="https://dav.jianguoyun.com/dav/" readonly></label>${field('dav-username','坚果云账号',config.username||'','通常是注册邮箱')}${field('dav-password','应用密码',config.password||'','使用第三方应用密码，不是登录密码','password')}${field('dav-folder','同步文件夹',config.folder||'PromptHelper','PromptHelper')}<p class="hint">不同设备填写相同的账号和文件夹。文件夹自动创建；首版仅支持坚果云。<a href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noopener noreferrer">如何获取应用密码</a></p><label class="check"><input type="checkbox" name="dav-auto" ${config.auto?'checked':''}>启用自动同步</label><p class="hint">修改后延迟同步，至少间隔 60 秒；打开已启用网站时每 10 分钟检查云端。浏览器关闭后不会同步。所有设备请先更新至 3.15.0 或更高版本，避免旧端无法读取新版同步文件。</p><div class="inline" style="flex-wrap:wrap">${btn('save-sync','保存配置')}${btn('test-sync','测试连接','cloud')}${btn('sync','立即同步','sync')}${btn('disconnect','断开连接')}</div></section><section class="section"><h3>同步状态</h3><p class="hint sync-detail">${esc(syncBusy?'正在同步…':errorStatus||meta.error||'就绪')}${meta.lastSuccess?'<br>上次成功：'+new Date(meta.lastSuccess).toLocaleString('zh-CN'):''}</p><p class="hint">离线时正常使用。两端同时修改会保留冲突版本；在列表中选择需要保留的版本。HTTPS 保护传输，云端 JSON 为明文，请勿存放密码或密钥。</p></section>`;
+    if(settingsTab==='backup') body=`<section class="section"><h3>备份与迁移</h3><p class="hint">JSON 包含提示词、标签分组、收藏、工具提示词、使用偏好、自定义图标和草稿，不包含坚果云账号或应用密码。导入采用合并方式，不清空现有内容。</p><div class="inline" style="flex-wrap:wrap">${btn('export-json','导出完整备份','draft')}${btn('import','导入 JSON / 旧版 TXT','plus')}${btn('export-txt','导出可读文本')}</div></section><section class="section"><h3>恢复保护</h3><p class="hint">升级前的 2.4 数据仍保留在脚本存储中。每次导入前也会保留一份本地快照。</p>${GM_getValue(PREFIX+'before_import',null)?btn('export-before-import','导出上次导入前快照'):''}${GM_getValue(PREFIX+'legacy_backup',[]).length?btn('export-legacy','导出升级前原始数据'):''}</section><section class="section"><h3>关于</h3><p class="hint">提示词助手 3.15.0<br>作者：Wesley Liu<br><a href="https://greasyfork.org/zh-CN/scripts/573984" target="_blank" rel="noopener noreferrer">Greasy Fork 官方发布页</a> · <a href="https://github.com/wu66chen/prompt-helper" target="_blank" rel="noopener noreferrer">GitHub 源码</a><br>由作者维护，通过 GitHub 同步发布。更新时保留脚本名称与命名空间，建议先导出完整备份。</p></section>`;
+    if(settingsTab==='appearance')body=typographySettings()+launcherSettings()+body;
     if(settingsTab==='sites')body=siteSettings();
     content.innerHTML=viewHeader('设置')+`<div class="settings-tabs">${[['appearance','外观与窗口'],['sites','网站'],['sync','云同步'],['backup','备份']].map(([v,l])=>`<button class="btn ${settingsTab===v?'active':''}" data-action="settings-tab" data-key="${v}">${l}</button>`).join('')}</div><div class="scroll form-scroll">${body}</div>`;
     if(syncBusy) $$('[data-action=sync],[data-action=test-sync]').forEach(b=>b.disabled=true);
@@ -508,7 +504,7 @@ function groupOptions(selected) { return `<option value="">未分组</option>`+s
 function groupColorControls(g){return `<label class="group-color" title="${esc(g.name)}图标颜色"><input type="color" name="group-color" data-key="${esc(g.key)}" aria-label="${esc(g.name)}图标颜色" value="${esc(g.color||'#0065d5')}"></label>${ibtn('group-color-reset','恢复默认图标颜色','sync',`data-key="${esc(g.key)}"`)}`;}
 function renderGroups() {
     const groups=[...state.group,{key:'',name:'未分组',color:state.ungroupedColor}];
-    content.innerHTML=viewHeader('标签与分组')+`<div class="scroll form-scroll"><p class="hint">点击颜色方块自定义分组图标颜色。拖到标签或分组上半部／下半部可插入到其上方／下方，蓝线标示落点；拖到分组空白处可移入分组。也可点击上下箭头排序。</p><form class="inline" data-form="new-group"><input class="input" name="group-name" maxlength="100" placeholder="新分组名称" aria-label="新分组名称" required><button class="btn" type="submit">新建分组</button></form>${groups.map(g=>`<section class="manage-group" data-group="${esc(g.key)}" ${g.key?'draggable="true"':''}><div class="inline group-heading">${g.key?`<span class="drag-handle">${icon('grip')}</span><input class="input" aria-label="分组名称" name="rename-group" data-key="${esc(g.key)}" value="${esc(g.name)}" maxlength="100">${groupColorControls(g)}${ibtn('group-up','上移分组','up',`data-key="${esc(g.key)}"`)}${ibtn('group-down','下移分组','down',`data-key="${esc(g.key)}"`)}${ibtn('delete-group','删除分组','trash',`data-key="${esc(g.key)}"`)}`:`<h3 style="font-size:13px;margin:0;flex:1">未分组</h3>${groupColorControls(g)}`}</div>${state.tag.filter(t=>(state.group.some(x=>x.key===t.group)?t.group:'')===g.key).map(t=>`<div class="manage-tag" draggable="true" data-tag="${esc(t.key)}"><span class="drag-handle">${icon('grip')}</span><span class="tag-name">${esc(t.name)}</span><span class="tag-count" aria-label="${state.prompt.filter(p=>p.tags.includes(t.name)).length} 个提示词">${state.prompt.filter(p=>p.tags.includes(t.name)).length}</span><select class="input" name="tag-group" data-key="${esc(t.key)}" aria-label="${esc(t.name)}所属分组">${groupOptions(t.group)}</select>${ibtn('tag-up','上移标签','up',`data-key="${esc(t.key)}"`)}${ibtn('tag-down','下移标签','down',`data-key="${esc(t.key)}"`)}${ibtn('rename-tag','重命名标签','edit',`data-key="${esc(t.key)}"`)}${ibtn('delete-tag','删除标签，不删除提示词','trash',`data-key="${esc(t.key)}"`)}</div>`).join('')||'<p class="hint">此分组暂无标签</p>'}</section>`).join('')}<form class="section" data-form="new-tag"><h3>新建标签</h3><div class="inline"><input class="input" name="tag-name" maxlength="100" placeholder="标签名称" aria-label="标签名称" required><select class="input" name="new-tag-group" aria-label="标签所属分组">${groupOptions('')}</select><button class="btn" type="submit">添加</button></div></form></div>`;
+    content.innerHTML=viewHeader('标签与分组')+`<div class="scroll form-scroll"><p class="hint">点击颜色方块自定义分组图标颜色。拖到标签或分组上半部／下半部可插入到其上方／下方，蓝线标示落点；拖到分组空白处可移入分组。也可点击上下箭头排序。</p><form class="inline" data-form="new-group"><input class="input" name="group-name" maxlength="100" placeholder="新分组名称" aria-label="新分组名称" required><button class="btn" type="submit">新建分组</button></form>${groups.map(g=>`<section class="manage-group" data-group="${esc(g.key)}" ${g.key?'draggable="true"':''}><div class="inline group-heading">${g.key?`<span class="drag-handle">${icon('grip')}</span><input class="input" aria-label="分组名称" name="rename-group" data-key="${esc(g.key)}" value="${esc(g.name)}" maxlength="100">${groupColorControls(g)}${ibtn('group-up','上移分组','up',`data-key="${esc(g.key)}"`)}${ibtn('group-down','下移分组','down',`data-key="${esc(g.key)}"`)}${ibtn('delete-group','删除分组','trash',`data-key="${esc(g.key)}"`)}`:`<h3 style="font-size:calc(13px * var(--font-scale,1));margin:0;flex:1">未分组</h3>${groupColorControls(g)}`}</div>${state.tag.filter(t=>(state.group.some(x=>x.key===t.group)?t.group:'')===g.key).map(t=>`<div class="manage-tag" draggable="true" data-tag="${esc(t.key)}"><span class="drag-handle">${icon('grip')}</span><span class="tag-name">${esc(t.name)}</span><span class="tag-count" aria-label="${state.prompt.filter(p=>p.tags.includes(t.name)).length} 个提示词">${state.prompt.filter(p=>p.tags.includes(t.name)).length}</span><select class="input" name="tag-group" data-key="${esc(t.key)}" aria-label="${esc(t.name)}所属分组">${groupOptions(t.group)}</select>${ibtn('tag-up','上移标签','up',`data-key="${esc(t.key)}"`)}${ibtn('tag-down','下移标签','down',`data-key="${esc(t.key)}"`)}${ibtn('rename-tag','重命名标签','edit',`data-key="${esc(t.key)}"`)}${ibtn('delete-tag','删除标签，不删除提示词','trash',`data-key="${esc(t.key)}"`)}</div>`).join('')||'<p class="hint">此分组暂无标签</p>'}</section>`).join('')}<form class="section" data-form="new-tag"><h3>新建标签</h3><div class="inline"><input class="input" name="tag-name" maxlength="100" placeholder="标签名称" aria-label="标签名称" required><select class="input" name="new-tag-group" aria-label="标签所属分组">${groupOptions('')}</select><button class="btn" type="submit">添加</button></div></form></div>`;
 }
 function dialog(title,body,onConfirm,{label='确认',danger=false,input=false}={}) {
     dialogReturnFocus=shadow.activeElement;
@@ -552,7 +548,7 @@ function savePrompt() {
     const value={title:form.title.trim(),content:form.content.trim(),tags:tags(form.tags),favorite:form.favorite};
     Core.validate([{id:'validate',entity:'prompt',key:'validate',at:0,device:'',parents:[],value}]);
     commit('prompt',form.key,value,form.base); ensureTags(value.tags);
-    removeDraft(form.draftId,form.draftParents); clearTimeout(draftTimer); form=null; view='library'; render(); toast('提示词已保存');
+    removeDraft(form.draftId,form.draftParents);  form=null;returnToPrevious();toast('提示词已保存');
 }
 function download(text,name,type='application/json') {
     const url=URL.createObjectURL(new Blob([text],{type:type+';charset=utf-8'})),a=document.createElement('a');
@@ -579,7 +575,7 @@ async function importFile(file) {
     const merged=Core.merge(ops,incoming), count=merged.length-ops.length;
     if(!count) { toast('没有新内容，已跳过重复记录'); return; }
     dialog('合并导入备份',`<p>将合并 ${count} 条新增或修改记录。已有提示词不会被清空；并行修改会保留为冲突版本。</p>`,()=>{
-        GM_setValue(PREFIX+'before_import',Core.pack(readOps())); writeOperations(incoming); ensureTags([...new Set(state.prompt.flatMap(p=>p.tags))]); view='library';render();toast('备份已合并，导入前快照已保留');
+        GM_setValue(PREFIX+'before_import',Core.pack(readOps())); writeOperations(incoming); ensureTags([...new Set(state.prompt.flatMap(p=>p.tags))]); render();toast('备份已合并，导入前快照已保留');
     },{label:'合并导入'});
 }
 function getSyncForm() {
@@ -720,6 +716,7 @@ shadow.addEventListener('click',async event=>{
         }
         if(action==='upload-launcher'){$('.launcher-file').click();return;}
         if(action==='reset-launcher'){saveSettings({launcherIcon:''});renderSettings();return;}
+        if(action==='reset-font-size'){saveSettings({fontSize:14});return;}
         if(action==='reset-launcher-size'){saveSettings({launcherSize:defaults.launcherSize});return;}
         if(action==='reset-window'){anchor=null;panelSize={w:680,h:650};direction='up-left';restoreGeometry=null;positionFromAnchor(true);toast('窗口位置已恢复');return;}
         if(action==='nav'){panel.classList.toggle('nav-open');return;}
@@ -727,7 +724,7 @@ shadow.addEventListener('click',async event=>{
         if(action==='group-color-reset'){const g=state.group.find(g=>g.key===target.dataset.key);if(g)commit('group',g.key,{name:g.name,rank:g.rank});else if(!target.dataset.key)commit('group','system-ungrouped',null);render();return;}
         if(action==='settings'){navigate('settings');return;}
         if(action==='sync-settings'){syncSettings();return;}
-        if(action==='settings-tab'){settingsTab=target.dataset.key;renderSettings();animateView();return;}
+        if(action==='settings-tab'){navigate('settings',{tab:target.dataset.key});return;}
         if(storageBroken)throw Error('本地数据需要检查，暂时不能修改');
         if(action==='new'){startEditor(null);return;}
         if(action==='back'){back();return;}
@@ -753,19 +750,20 @@ shadow.addEventListener('click',async event=>{
                 toast(reset?'已移除修改版本':'工具版本已删除','撤销',()=>{commit('tool',tool.key,before,[deleted.id]);if(view==='prompt-tools')renderPromptTools();toast('已撤销');});
             },{label:reset?'恢复内置':'删除工具',danger:true});return;
         }
-        if(action==='filter'){requestLeave(()=>{leaveForm();filter={kind:target.dataset.kind,key:target.dataset.key};selectedTag='';view='library';panel.classList.remove('nav-open');render();});return;}
+        if(action==='filter'){navigate('library',{filter:{kind:target.dataset.kind,key:target.dataset.key}});return;}
         if(action==='tag-filter'){selectedTag=target.dataset.key;renderList();return;}
         if(action==='clear-search'){query='';selectedTag='';filter={kind:'all',key:''};render();return;}
         if(action==='save-prompt'){savePrompt();return;}
         if(action==='copy-output'){await copyText(form.output);return;}
-        if(action==='discard-draft'){dialog('丢弃这份草稿？','<p>原模板保持不变。此操作会删除当前未保存的草稿。</p>',()=>{clearTimeout(draftTimer);removeDraft(form.draftId,form.draftParents);view=form.mode==='tool'?'prompt-tools':'library';form=null;render();},{label:'丢弃草稿',danger:true});return;}
-        if(action==='restore-draft'){requestLeave(()=>{leaveForm();const draft=draftList().find(d=>d.storageKey===target.dataset.key);if(!draft?.form)throw Error('草稿已被移除');form=JSON.parse(JSON.stringify(draft.form));form.initial??=formSnapshot(form);view='editor';render();});return;}
+        if(action==='save-draft'){if(!isFormDirty()){toast('内容未修改，无需保存草稿');return;}persistDraft(true);renderSidebar();toast('已保存到草稿');return;}
+        if(action==='discard-draft'){dialog('丢弃这份草稿？','<p>原模板保持不变。此操作会删除当前未保存的草稿。</p>',()=>{removeDraft(form.draftId,form.draftParents);form=null;returnToPrevious();},{label:'丢弃草稿',danger:true});return;}
+        if(action==='restore-draft'){requestLeave(()=>{rememberPage();leaveForm();const draft=draftList().find(d=>d.storageKey===target.dataset.key);if(!draft?.form)throw Error('草稿已被移除');form=JSON.parse(JSON.stringify(draft.form));form.initial=formSnapshot(form);view='editor';render();});return;}
         if(action==='remove-draft'){dialog('删除草稿？','<p>这不会删除已保存的提示词。</p>',()=>{const d=draftList().find(d=>d.storageKey===target.dataset.key);if(d)removeDraft(d.form.draftId,d.form.draftParents);render();},{label:'删除草稿',danger:true});return;}
         if(action==='mark-variable'||action==='unmark-variable'){
             const el=$('[name=content]'),start=el.selectionStart,end=el.selectionEnd,selection=el.value.slice(start,end);
             const replacement=action==='mark-variable'?'{{'+(selection||'变量')+'}}':selection.replace(/\{\{|\}\}/g,'');
             if(action==='unmark-variable'&&!selection){toast('请先选中需要恢复的变量（包含大括号）');return;}
-            el.setRangeText(replacement,start,end,'select');el.focus();form.content=el.value;updateVariableHighlight();persistDraft();return;
+            el.setRangeText(replacement,start,end,'select');el.focus();form.content=el.value;updateVariableHighlight();return;
         }
         if(action==='export-json'){flushDrafts();refresh();download(Core.pack(ops),dated('json'));return;}
         if(action==='export-txt'){exportText();return;}
@@ -813,6 +811,7 @@ shadow.addEventListener('click',async event=>{
 shadow.addEventListener('input',event=>{
     const el=event.target;
     try {
+        if(el.name==='fontSize'){saveSettings({fontSize:Number(el.value)});return;}
         if(el.name==='launcherSize'){updateLauncherPreview(el.value);return;}
         if(el.classList.contains('search-input')){query=el.value;clearTimeout(searchTimer);searchTimer=setTimeout(renderList,100);return;}
         if(view==='editor'&&form){
@@ -820,10 +819,10 @@ shadow.addEventListener('input',event=>{
             if(['title','content','tags','output','description'].includes(el.name))form[el.name]=el.value;
             if(el.name==='content'||el.name==='output')updateVariableHighlight();
             if(el.name.startsWith('variable-')){
-                const name=variables(form.content)[Number(el.name.slice(9))];form.values[name]=el.value;
+                const name=variables(form.content)[Number(el.name.slice(9))];if(el.value==='')delete form.values[name];else form.values[name]=el.value;
                 fillOutput();$('[name=output]').value=form.output;updateVariableHighlight();
             }
-            clearTimeout(draftTimer);draftTimer=setTimeout(persistDraft,350);
+            // Drafts are saved only by an explicit user choice.
         }
     } catch(error){toast(error.message);}
 });
@@ -833,6 +832,7 @@ shadow.addEventListener('change',event=>{
         if(el.classList.contains('launcher-file')){uploadLauncher(el.files[0]).catch(e=>toast(e.message));el.value='';return;}
         if(el.name==='site-default'){saveSites(r=>({...r,disabledDefaults:el.checked?r.disabledDefaults.filter(h=>h!==el.dataset.host):[...r.disabledDefaults,el.dataset.host]}));return;}
         if(el.name==='site-custom-enabled'||el.name==='site-custom-subdomains'){saveSites(r=>({...r,custom:r.custom.map(x=>x.host===el.dataset.host?{...x,[el.name==='site-custom-enabled'?'enabled':'subdomains']:el.checked}:x)}));return;}
+        if(el.name==='fontSize'){saveSettings({fontSize:Number(el.value)});return;}
         if(el.name==='launcherSize'){saveSettings({launcherSize:el.value});return;}
         if(el.name==='collapse'){
             saveSettings({collapseModes:{[el.value]:el.checked}});return;
@@ -982,9 +982,9 @@ function handleHelperKeydown(e){
             if(e.shiftKey&&index<=0){controls.at(-1)?.focus();e.preventDefault();}else if(!e.shiftKey&&index===controls.length-1){controls[0]?.focus();e.preventDefault();}
         }return;
     }
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopPropagation();navigate('library');$('.search-input')?.focus();}
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopPropagation();navigate('library',{focusSearch:true});}
     if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&form){e.preventDefault();e.stopPropagation();if(form.mode==='use')copyText(form.output);else try{savePrompt();}catch(error){toast(error.message);}}
-    if(e.key==='Escape'&&view!=='library'){e.preventDefault();e.stopPropagation();back();}
+    if(e.key==='Escape'&&(view!=='library'||navigation.length)){e.preventDefault();e.stopPropagation();back();}
 }
 // Isolate host-page shortcuts before document capture; keep native editing defaults.
 let helperFocus=null;
@@ -1001,9 +1001,8 @@ for(const type of ['beforeinput','input','change','compositionstart','compositio
 function adaptWindow(){if(settings.syncPosition)applySharedLayout();else if(isOpen)placePanel(true);else positionFromAnchor(true);}
 new ResizeObserver(()=>panel.style.setProperty('--header-height',$('.topbar').offsetHeight+'px')).observe($('.topbar'));
 window.addEventListener('resize',adaptWindow);window.visualViewport?.addEventListener('resize',adaptWindow);window.visualViewport?.addEventListener('scroll',adaptWindow);
-window.addEventListener('pagehide',()=>persistDraft());
-window.addEventListener('beforeunload',e=>{if(protectedEdit()&&formSnapshot(form)!==form.initial){e.preventDefault();e.returnValue='';}});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)persistDraft();else{try{receiveSettings(GM_getValue(SETTINGS_KEY,settings));applySharedLayout();refresh();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='prompt-tools')renderPromptTools();}scheduleSync(15000);}catch(error){toast(error.message);}}});
+window.addEventListener('beforeunload',e=>{if(isFormDirty()){e.preventDefault();e.returnValue='';}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){try{receiveSettings(GM_getValue(SETTINGS_KEY,settings));applySharedLayout();refresh();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='prompt-tools')renderPromptTools();}scheduleSync(15000);}catch(error){toast(error.message);}}});
 GM_addValueChangeListener(PREFIX+'changed',(_key,_old,_value,remote)=>{
     if(!remote)return;
     try { refresh();applyPortable();if(isOpen){renderSidebar();if(view==='library')renderList();if(view==='groups')renderGroups();if(view==='prompt-tools')renderPromptTools();}updateStatus(); }catch(error){errorStatus=error.message;updateStatus();}

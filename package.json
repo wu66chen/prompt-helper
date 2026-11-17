@@ -21,7 +21,9 @@
     "test:tooltip": "node tests/tooltip.cjs",
     "test:launcher": "node tests/launcher-size.cjs",
     "test:profile": "node tests/profile-browser.cjs",
-    "test:interactions": "node tests/interaction-regressions.cjs"
+    "test:interactions": "node tests/interaction-regressions.cjs",
+    "test:navigation": "node tests/draft-navigation.cjs",
+    "test:typography": "node tests/typography-glass.cjs"
   },
   "devDependencies": {
     "playwright": "^1.58.0"

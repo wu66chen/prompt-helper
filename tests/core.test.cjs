@@ -8,7 +8,7 @@ test('tool histories roundtrip, retain concurrent edits/reset, and never revive 
  const tool=(id,parents=[],text=id)=>({id,parents,entity:'tool',key:'refine',at:1,device:'fixture',value:text===null?null:{title:'优化',description:'说明',text}});
  const initial=tool('initial'),a=tool('a',['initial'],'设备 A'),b=tool('b',['initial'],'设备 B'),reset=tool('reset',['a'],null);
  const merged=C.merge([initial,a],[initial,b]);assert.equal(C.project(merged).tool.length,2);assert.ok(C.project(merged).tool.every(t=>t.conflict));
- assert.deepEqual(C.unpack(C.pack(merged)),merged);assert.equal(JSON.parse(C.pack(merged)).version,5);
+ assert.deepEqual(C.unpack(C.pack(merged)),merged);assert.equal(JSON.parse(C.pack(merged)).version,6);
  const mixed=C.project(C.merge(merged,[reset]));assert.equal(mixed.tool.length,1);assert.equal(mixed.tool[0].deletedConflict,true);
  const resolved=tool('resolved',['b','reset'],'最终版本');assert.equal(C.project(C.merge(merged,[reset,resolved])).tool.length,1);
  assert.equal(C.project(C.merge([initial,a,reset],[initial])).tool.length,0);

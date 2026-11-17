@@ -34,7 +34,7 @@ function publishDraft(value,parents){
     return commit('draft',key,value,parents||heads.map(h=>h.id)).id;
 }
 function flushDrafts(){
-    // Keep automatic keystroke recovery local; publish only one snapshot per sync/exit.
+    // Migrate recovery caches created by older releases; new edits are saved explicitly.
     for(const key of GM_listValues().filter(k=>k.startsWith(DRAFT))){
         const value=GM_getValue(key);if(!value?.form)continue;
         const revision=publishDraft(value,value.form.draftParents);
@@ -47,13 +47,20 @@ function removeDraft(draftId,parents){
     const observed=parents||heads.map(h=>h.id);
     if(observed.length)commit('draft',draftId,null,observed);
 }
-function formSnapshot(f){return JSON.stringify([f.title,f.content,f.tags]);}
-function protectedEdit(){return form?.mode==='edit'&&form.base?.length>0;}
+function formSnapshot(f){
+    if(f.mode==='use')return JSON.stringify([f.output,Object.entries(f.values||{}).filter(([,value])=>value!=='').sort(([a],[b])=>a.localeCompare(b))]);
+    if(f.mode==='tool')return JSON.stringify([f.title,f.description||'',f.content]);
+    return JSON.stringify([f.title,f.content,f.tags,!!f.favorite]);
+}
+function protectedEdit(){return !!form;}
+function isFormDirty(){return !!form&&formSnapshot(form)!==form.initial;}
+function draftKind(f){return f.mode==='tool'?(f.toolExisting?'修改工具':'新建工具'):f.mode==='use'?(variables(f.content).length?'填写变量':'临时编辑'):f.base?.length?'修改原模板':'新建提示词';}
 function requestLeave(proceed){
-    if(!protectedEdit()||formSnapshot(form)===form.initial){proceed();return;}
+    if(!isFormDirty()){proceed();return;}
     dialog('如果返回，你编辑的内容将丢失。','<p>选择存草稿可以稍后继续编辑。按 Esc 可留在编辑页。</p>',()=>{persistDraft(true);form=null;closeDialog();proceed();return false;},{label:'存草稿'});
     const discard=$('[data-action=dialog-cancel]');discard.textContent='放弃';discard.classList.add('danger');
-    discard.onclick=e=>{e.stopPropagation();removeDraft(form.draftId,form.draftParents);form=null;closeDialog();proceed();};
+    // Discard this edit session, not the last explicitly saved draft.
+    discard.onclick=e=>{e.stopPropagation();form=null;closeDialog();proceed();};
 }
 function launcherMarkup(){return settings.launcherIcon?`<img class="launcher-icon custom-launcher" alt="" aria-hidden="true" draggable="false" width="56" height="56" src="${esc(settings.launcherIcon)}">`:LAUNCHER;}
 function paintLauncher(){

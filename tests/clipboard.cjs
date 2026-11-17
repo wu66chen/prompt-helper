@@ -24,7 +24,7 @@ const {chromium}=require('playwright'),{setup}=require('./browser.cjs'),assert=r
   const filled=await root.locator('[name=output]').inputValue();await reset();await root.locator('[data-action=copy-output]').click();await copied(filled);
   await reset();await root.locator('[name=output]').focus();await page.keyboard.press('Control+Enter');await copied(filled);
   await root.locator('[name=output]').fill('');await reset();await root.locator('[data-action=copy-output]').click();assert.equal(await root.locator('.toast').textContent(),'没有可复制的内容');assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'OLD CLIPBOARD');
-  await root.locator('[data-action=settings]').click();await root.locator('[name=libraryLayout]').selectOption('masonry');await root.locator('[data-action=back]').click();await reset();await root.locator('.prompt [data-action=copy]').first().click();await copied(expected);
+  await root.locator('[data-action=settings]').click();await root.locator('[data-action=dialog-cancel]').click();await root.locator('[name=libraryLayout]').selectOption('masonry');await root.locator('[data-action=back]').click();await reset();await root.locator('.prompt [data-action=copy]').first().click();await copied(expected);
   await root.locator('[data-action=prompt-tools]').click();
   for(const key of ['refine','title','tags']){await reset();await root.locator(`[data-action=copy-tool][data-key=${key}]`).click();await copied(await page.evaluate(()=>__requested));}
   await root.locator('[data-action=new-tool]').click();await root.locator('[name=title]').fill('剪贴板验证工具');await root.locator('[name=content]').fill('完整正文 {{测试参数}}\n第二行 <literal>');await root.locator('[data-action=save-prompt]').click();

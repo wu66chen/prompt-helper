@@ -15,7 +15,19 @@ test('concurrent drafts survive; deletion cannot erase an unseen edit or revive 
  assert.equal(C.project(C.merge(history,[base,a])).draft.length,1);
  const safe=C.pack([op('safe','draft','draft',{...draft,password:'secret',form:{...draft.form,password:'secret'}})]);assert.ok(!safe.includes('secret'));
 });
-test('v3 and v4 imports still work while v5 explicitly identifies new records',()=>{
- for(const version of [3,4])assert.deepEqual(C.unpack(JSON.stringify({format:C.FORMAT,version,operations:[]})),[]);
- assert.equal(JSON.parse(C.pack([])).version,5);
+test('v3, v4 and v5 imports still work while v6 identifies font preferences',()=>{
+ for(const version of [3,4,5])assert.deepEqual(C.unpack(JSON.stringify({format:C.FORMAT,version,operations:[]})),[]);
+ assert.equal(JSON.parse(C.pack([])).version,6);
+});
+test('font size roundtrips only within the supported integer range',()=>{
+ for(const size of [12,14,20]){
+  const value=op('font-'+size,'preference','fontSize',{name:'fontSize',data:size});
+  assert.equal(C.project(C.unpack(C.pack([value]))).preference[0].data,size);
+ }
+ for(const size of [11,21,14.5,'14',null])assert.throws(()=>C.pack([op('bad','preference','fontSize',{name:'fontSize',data:size})]));
+});
+test('userscript manager icon embeds the actual seal PNG',()=>{
+ const fs=require('node:fs'),path=require('node:path'),script=fs.readFileSync(path.join(__dirname,'../prompt-helper.user.js'),'utf8');
+ const icon=script.match(/^\/\/ @icon\s+data:image\/png;base64,(.+)$/m);assert.ok(icon);
+ assert.deepEqual(Buffer.from(icon[1],'base64'),fs.readFileSync(path.join(__dirname,'../src/launcher.png')));
 });

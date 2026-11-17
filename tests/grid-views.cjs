@@ -14,7 +14,7 @@ const dir=path.resolve(__dirname,'..');
    await page.waitForTimeout(350);
    const rows=await root.locator('.prompt').evaluateAll(cards=>cards.map(c=>({height:c.offsetHeight,overflow:c.scrollWidth>c.clientWidth,actions:[...c.querySelectorAll('.actions>button')].map(b=>({top:b.getBoundingClientRect().top,height:b.getBoundingClientRect().height,width:b.getBoundingClientRect().width}))})));
    assert.ok(rows.every(r=>!r.overflow),mode+' cards should not overflow');
-   for(const row of rows){assert.equal(row.actions.length,4);assert.ok(Math.max(...row.actions.map(a=>a.top))-Math.min(...row.actions.map(a=>a.top))<1,mode+' actions must stay in one row');assert.ok(row.actions.every(a=>Math.abs(a.height-32)<1&&a.width>0),JSON.stringify(row.actions));}
+   for(const row of rows){assert.equal(row.actions.length,4);assert.ok(Math.max(...row.actions.map(a=>a.top))-Math.min(...row.actions.map(a=>a.top))<1,mode+' actions must stay in one row');assert.ok(row.actions.every(a=>a.height>=32&&Math.abs(a.height-row.actions[0].height)<1&&a.width>0),JSON.stringify(row.actions));}
    if(mode==='grid')assert.ok(Math.max(...rows.map(r=>r.height))-Math.min(...rows.map(r=>r.height))<=1,'all grid cards have equal height');
    assert.deepEqual(await root.locator('.prompt h3').allTextContents(),titles);
    assert.equal(await root.locator('.prompt-list').evaluate(e=>e.scrollWidth>e.clientWidth),false);

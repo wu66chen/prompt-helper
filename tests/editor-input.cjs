@@ -43,7 +43,7 @@ const {chromium}=require('playwright'),{setup}=require('./browser.cjs'),assert=r
   for(const [theme,width] of [['light',1100],['dark',390]]){
    await page.evaluate(theme=>GM_setValue('ph3_settings_global',{...GM_getValue('ph3_settings_global'),theme}),theme);
    // Apply via the normal UI to exercise theme changes without replacing the draft.
-   await root.locator('[data-action=settings]').click();await root.locator('[name=theme]').selectOption(theme);await root.locator('[data-action=drafts]').click();
+   await root.locator('[data-action=settings]').click();await root.locator('[data-action=dialog-confirm]').click();await root.locator('[name=theme]').selectOption(theme);await root.locator('[data-action=drafts]').click();
    await root.locator('[data-action=restore-draft]').first().click();await page.setViewportSize({width,height:850});
    await input.fill('基于我上传的图片，输出 {{输出比例}} 的图片。\n保持区域外内容不变。\n\n数量：{{图片数量}}\n风格：{{风格}}');
    await root.locator('.panel').screenshot({path:path.join(__dirname,'../artifacts/editor/'+theme+'.png')});

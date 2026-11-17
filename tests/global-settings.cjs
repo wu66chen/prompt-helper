@@ -68,6 +68,9 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  assert.equal(await root(c).locator('[name=launcherSize]').inputValue(),'128');
  const sized=await create('delta.test');assert.equal((await ball(sized).boundingBox()).width,128);await sized.close();pages.delete(sized);
  console.log('PASS launcher size live sync across unrelated origins and new sites');
+ await root(a).locator('[name=fontSize]').fill('18');await root(a).locator('[name=fontSize]').dispatchEvent('input');
+ await c.waitForFunction(()=>document.querySelector('#db-prompt-helper-root').style.getPropertyValue('--font-scale')===String(18/14));assert.equal(await root(c).locator('[name=fontSize]').inputValue(),'18');
+ console.log('PASS global font size live sync across unrelated origins');
  console.log('PASS remote settings preserve unfinished form input');
  await root(a).locator('[data-action=prompt-tools]').click();await root(c).locator('[data-action=prompt-tools]').click();
  await root(a).locator('[data-action=edit-tool][data-key=title]').click();await root(a).locator('[name=content]').fill('跨网站工具 {{原文}}');await root(a).locator('[data-action=save-prompt]').click();
@@ -77,7 +80,7 @@ const dir=path.resolve(__dirname,'..'),script=fs.readFileSync(path.join(dir,'pro
  console.log('PASS custom tool changes shared across unrelated origins');
  await root(a).locator('[data-action=settings]').click();await root(a).locator('[name=libraryLayout]').selectOption('masonry');
  await root(c).locator('[data-action=settings]').click();assert.equal(await root(c).locator('[name=libraryLayout]').inputValue(),'masonry');
- await root(c).locator('[data-action=back]').click();assert.equal(await root(c).locator('.prompt-list.masonry').count(),1);
+ await root(c).locator('[data-action=filter][data-kind=all]').click();assert.equal(await root(c).locator('.prompt-list.masonry').count(),1);
  for(const layout of ['grid','titles']){
   await root(a).locator('[name=libraryLayout]').selectOption(layout);
   await c.waitForFunction(mode=>document.querySelector('#db-prompt-helper-root').shadowRoot.querySelector('.prompt-list').classList.contains(mode==='titles'?'titles-only':'equal-grid'),layout);

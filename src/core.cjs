@@ -1,6 +1,6 @@
 'use strict';
 const Core = (() => {
-    const FORMAT = 'prompt-helper', VERSION = 5, MAX_OPS = 30000, MAX_BYTES = 20 * 1024 * 1024;
+    const FORMAT = 'prompt-helper', VERSION = 6, MAX_OPS = 30000, MAX_BYTES = 20 * 1024 * 1024;
     const entities = ['prompt', 'tag', 'group', 'tool', 'preference', 'draft'];
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const tags = value => [...new Set((Array.isArray(value) ? value : String(value).split(/[,，]/)).map(t => String(t).trim()).filter(Boolean))];
@@ -11,6 +11,7 @@ const Core = (() => {
         let valid=bools.includes(name)&&typeof data==='boolean';
         if(name==='theme')valid=['system','light','dark'].includes(data);
         if(name==='libraryLayout')valid=['list','masonry','grid','titles'].includes(data);
+        if(name==='fontSize')valid=Number.isInteger(data)&&data>=12&&data<=20;
         if(name==='launcherSize')valid=Number.isInteger(data)&&data>=48&&data<=128;
         if(name==='launcherIcon'){
             valid=data==='';
@@ -135,7 +136,7 @@ const Core = (() => {
         if (new TextEncoder().encode(text).length > MAX_BYTES) throw Error('文件超过 20 MB，请先拆分或整理备份');
         let data;
         try { data = JSON.parse(text); } catch { throw Error('文件不是有效的 JSON 备份'); }
-        if (data.format !== FORMAT || ![3,4,VERSION].includes(data.version)) throw Error('备份版本不支持，请更新提示词助手后重试');
+        if (data.format !== FORMAT || ![3,4,5,VERSION].includes(data.version)) throw Error('备份版本不支持，请更新提示词助手后重试');
         return validate(data.operations).map(canonical);
     }
     function parseLegacy(text) {

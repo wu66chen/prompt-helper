@@ -62,7 +62,7 @@ if(require.main===module)(async()=>{
     await root.locator('.prompt').filter({hasText:'资深编辑'}).locator('[data-action=use]').click();
     await root.locator('[name=variable-0]').fill('需要润色的原文');await root.locator('[name=variable-1]').fill('团队同事');await root.locator('[data-action=copy-output]').click();
     assert.match(await page.evaluate(()=>window.__clipboard),/需要润色的原文/);assert.match(await page.evaluate(()=>window.__clipboard),/团队同事/);
-    await root.locator('[data-action=back]').click();
+    await root.locator('[data-action=back]').click();await root.locator('[data-action=dialog-cancel]').click();
     await root.locator('[data-action=new]').click();await root.locator('[name=title]').fill('新提示词');await root.locator('[name=content]').fill('为{{主题}}列出三种可行方案。');await root.locator('[name=tags]').fill('工作,规划');
     await root.locator('[data-action=collapse]').click();await root.locator('[data-action=open]').click();assert.equal(await root.locator('[name=content]').inputValue(),'为{{主题}}列出三种可行方案。');
     await root.locator('[data-action=save-prompt]').click();assert.equal(await root.locator('.prompt').count(),4);console.log('PASS full-text search, variable fill, copy and draft preservation');
@@ -84,7 +84,7 @@ if(require.main===module)(async()=>{
     await root.locator('[data-action=save-sync]').click();await root.locator('.content [data-action=sync]').click();await page.waitForTimeout(250);
     const cloud=await page.evaluate(()=>localStorage.getItem('mock-cloud'));assert.ok(cloud);assert.ok(!cloud.includes('test-only-app-password'));assert.equal(JSON.parse(cloud).format,'prompt-helper');
     await page.evaluate(()=>window.__networkFail=true);await root.locator('.content [data-action=sync]').click();await page.waitForTimeout(150);assert.match(await root.locator('.statusbar').innerText(),/无法连接/);await page.evaluate(()=>window.__networkFail=false);await root.locator('.content [data-action=sync]').click();await page.waitForTimeout(200);assert.doesNotMatch(await root.locator('.statusbar').innerText(),/无法连接/);console.log('PASS WebDAV config, simulated CAS upload, credentials excluded, offline recovery');
-    await root.locator('[data-action=back]').click();
+    await root.locator('[data-action=filter][data-kind=all]').click();
     const second=await context.newPage();await setup(second);const r2=second.locator('#db-prompt-helper-root');await r2.locator('[data-action=open]').click();await r2.locator('[data-action=new]').click();await r2.locator('[name=content]').fill('来自另一标签页的内容');await r2.locator('[data-action=save-prompt]').click();await page.waitForTimeout(150);assert.equal(await root.locator('.prompt').count(),5);console.log('PASS cross-tab update');
     await root.locator('.prompt').filter({hasText:'来自另一标签页'}).locator('[data-action=edit]').click();
     await r2.locator('.prompt').filter({hasText:'来自另一标签页'}).locator('[data-action=edit]').click();
@@ -96,7 +96,7 @@ if(require.main===module)(async()=>{
     await root.locator('[data-action=settings]').click();await root.locator('[data-action=settings-tab][data-key=backup]').click();
     const downloaded=page.waitForEvent('download');await root.locator('[data-action=export-json]').click();const download=await downloaded;const exportPath=path.join(dir,'artifacts/test-backup.json');await download.saveAs(exportPath);
     const exported=fs.readFileSync(exportPath,'utf8');assert.ok(!exported.includes('test-only-app-password'));assert.ok(!exported.includes('test@example.invalid'));
-    await root.locator('.import-file').setInputFiles({name:'legacy.txt',mimeType:'text/plain',buffer:Buffer.from('--- 提示词 1 ---\n[标签]：迁移\n[内容]：\n导入测试 {{变量}}\n\n=========================================')});await root.locator('[data-action=dialog-confirm]').click();assert.equal(await root.locator('.prompt').count(),6);
+    await root.locator('.import-file').setInputFiles({name:'legacy.txt',mimeType:'text/plain',buffer:Buffer.from('--- 提示词 1 ---\n[标签]：迁移\n[内容]：\n导入测试 {{变量}}\n\n=========================================')});await root.locator('[data-action=dialog-confirm]').click();await root.locator('[data-action=filter][data-kind=all]').click();assert.equal(await root.locator('.prompt').count(),6);
     assert.ok(await page.evaluate(()=>!!GM_getValue('ph3_before_import')));
     console.log('PASS JSON export excludes credentials, legacy import preserves backup');
     // Exercise actual pointer capture and geometry; a drag of the ball must not open the panel.
